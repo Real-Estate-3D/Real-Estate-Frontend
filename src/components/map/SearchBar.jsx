@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 
-const SearchBar = ({ onLocationSelect }) => {
+const SearchBar = ({ onLocationSelect, onTorontoSelect }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,13 +71,26 @@ const SearchBar = ({ onLocationSelect }) => {
     setShowSuggestions(false);
     setSuggestions([]);
 
+    const longitude = parseFloat(suggestion.lon);
+    const latitude = parseFloat(suggestion.lat);
+
+    // Check if this is Toronto
+    const isToronto = suggestion.display_name.toLowerCase().includes('toronto') ||
+                      suggestion.display_name.toLowerCase().includes('ontario');
+
     // Pass location data to parent
     if (onLocationSelect) {
       onLocationSelect({
-        longitude: parseFloat(suggestion.lon),
-        latitude: parseFloat(suggestion.lat),
+        longitude,
+        latitude,
         name: suggestion.display_name,
       });
+    }
+
+    // If Toronto, trigger WMS layer load
+    if (isToronto && onTorontoSelect) {
+      console.log('🗺️ Toronto detected - loading WMS layer');
+      onTorontoSelect();
     }
   };
 

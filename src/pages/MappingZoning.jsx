@@ -1,55 +1,55 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import CesiumMap from '../components/map/CesiumMap.jsx';
 import MapToolbar from '../components/map/MapToolBar.jsx';
 import SearchBar from '../components/map/SearchBar.jsx';
 import InfoPanel from '../components/map/InfoPanel.jsx';
+import { TORONTO_BOUNDS } from '../utils/geoServerUtils.js';
 
 const MappingZoning = () => {
-  const cesiumMapRef = useRef(null);
-  const [selectedParcel, setSelectedParcel] = useState(null);
-  const [showLayersPanel, setShowLayersPanel] = useState(false);
-  const [layerStates, setLayerStates] = useState({});
+  const mapRef = useRef(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
+  const [wmsLayerLoaded, setWmsLayerLoaded] = useState(false);
 
   // Handle location selection from search
   const handleLocationSelect = (location) => {
     console.log('Selected location:', location);
     
-    // Fly to the selected location
-    if (cesiumMapRef.current) {
-      cesiumMapRef.current.flyToLocation(
+    if (mapRef.current) {
+      mapRef.current.flyToLocation(
         location.longitude,
         location.latitude,
-        2000
+        50000
       );
     }
   };
 
-  // Handle parcel click
-  const handleParcelClick = (parcel) => {
-    console.log('Parcel clicked:', parcel);
-    setSelectedParcel(parcel);
-    setShowLayersPanel(false);
-  };
+  // Handle Toronto selection - load WMS layers
+  const handleTorontoSelect = useCallback(() => {
+    if (mapRef.current) {
+      console.log('🗺️ Loading Toronto WMS layers...');
+      
+      // Add WMS layers (zoning + regions)
+      mapRef.current.addWMSLayer();
+      setWmsLayerLoaded(true);
+      
+      // Fly to Toronto bounds
+      mapRef.current.flyToLocation(
+        TORONTO_BOUNDS.center.longitude,
+        TORONTO_BOUNDS.center.latitude,
+        TORONTO_BOUNDS.center.altitude
+      );
+    }
+  }, []);
 
-  // Handle layers button click
-  const handleLayersClick = () => {
-    setShowLayersPanel(true);
-    setSelectedParcel(null);
-  };
+  // Handle WMS feature click - receives full WFS data
+  const handleWMSFeatureClick = useCallback((feature) => {
+    console.log('✅ WFS Feature data received:', feature);
+    setSelectedFeature(feature);
+  }, []);
 
   // Handle panel close
   const handlePanelClose = () => {
-    setSelectedParcel(null);
-    setShowLayersPanel(false);
-  };
-
-  // Handle layer toggle
-  const handleLayerToggle = (layerId) => {
-    setLayerStates(prev => ({
-      ...prev,
-      [layerId]: !prev[layerId]
-    }));
-    console.log('Layer toggled:', layerId);
+    setSelectedFeature(null);
   };
 
   return (
@@ -60,11 +60,14 @@ const MappingZoning = () => {
         <div className="space-y-3">
           
           {/* Search Bar with Autocomplete */}
-          <SearchBar onLocationSelect={handleLocationSelect} />
+          <SearchBar 
+            onLocationSelect={handleLocationSelect}
+            onTorontoSelect={handleTorontoSelect}
+          />
 
           {/* Horizontal Toolbar */}
           <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-white/30 p-2 flex gap-1">
-            <MapToolbar onLayersClick={handleLayersClick} />
+            <MapToolbar />
           </div>
         </div>
       </div>
@@ -74,25 +77,35 @@ const MappingZoning = () => {
         <div className="bg-white/90 backdrop-blur-md rounded-lg shadow-xl border border-white/30 p-4 min-w-48">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">Layer Legend</h3>
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-4 bg-red-400/60 border-2 border-red-600 rounded"></div>
-              <span className="text-xs text-gray-700">Parcels</span>
-            </div>
+            {wmsLayerLoaded && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-4 bg-blue-400/60 border-2 border-blue-600 rounded"></div>
+                  <span className="text-xs text-gray-700">Zoning</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-4 bg-purple-400/60 border-2 border-purple-600 rounded"></div>
+                  <span className="text-xs text-gray-700">Regions</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Info Panel - Right Side (Parcel Info or Layers) */}
-      {(selectedParcel || showLayersPanel) && (
+      {/* Info Panel - Right Side (Shows WFS Data) */}
+      {selectedFeature && (
         <InfoPanel
-          parcel={selectedParcel}
-          layers={showLayersPanel ? layerStates : null}
+          feature={selectedFeature}
           onClose={handlePanelClose}
-          onLayerToggle={handleLayerToggle}
         />
       )}
 
-      <CesiumMap ref={cesiumMapRef} onParcelClick={handleParcelClick} />
+      <CesiumMap 
+        key="cesium-map-instance" 
+        ref={mapRef} 
+        onWMSFeatureClick={handleWMSFeatureClick}
+      />
     </div>
   );
 };

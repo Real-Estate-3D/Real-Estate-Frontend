@@ -1,30 +1,31 @@
 import React from 'react';
-import { X, Download, Eye, Building2, MapPin, Calendar, DollarSign, Layers as LayersIcon } from 'lucide-react';
-import { layerCategories } from '../../data/torontoParcelData';
+import { X, Building2, MapPin } from 'lucide-react';
 
-const InfoPanel = ({ parcel, onClose, layers, onLayerToggle }) => {
-  if (!parcel && !layers) return null;
+const InfoPanel = ({ feature, onClose }) => {
+  if (!feature) return null;
+
+  const properties = feature.properties || {};
+  const featureId = feature.id || 'Unknown';
+
+  // Group properties by category (you can customize this logic)
+  const groupedProperties = groupPropertiesByCategory(properties);
 
   return (
     <div className="absolute top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          {parcel ? (
-            <>
-              <Building2 className="w-5 h-5" />
-              Single-Tier Municipality
-            </>
-          ) : (
-            <>
-              <LayersIcon className="w-5 h-5" />
-              Layers
-            </>
-          )}
-        </h2>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-white">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Property Details</h2>
+            <p className="text-xs text-gray-500">Feature ID: {featureId}</p>
+          </div>
+        </div>
         <button
           onClick={onClose}
-          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
@@ -32,147 +33,59 @@ const InfoPanel = ({ parcel, onClose, layers, onLayerToggle }) => {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        {parcel ? (
-          <ParcelInfo parcel={parcel} />
-        ) : (
-          <LayersPanel layers={layers} onLayerToggle={onLayerToggle} />
-        )}
+        <div className="p-6 space-y-6">
+          
+          {/* Main Address/Title if available */}
+          {(properties.address || properties.name || properties.label) && (
+            <div className="pb-4 border-b border-gray-200">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {properties.address || properties.name || properties.label}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Dynamic Sections Based on Properties */}
+          {Object.entries(groupedProperties).map(([category, props]) => (
+            <Section key={category} title={category}>
+              {Object.entries(props).map(([key, value]) => (
+                <PropertyRow key={key} label={formatLabel(key)} value={value} />
+              ))}
+            </Section>
+          ))}
+
+          {/* If no grouped properties, show all flat */}
+          {Object.keys(groupedProperties).length === 0 && (
+            <Section title="Overview">
+              {Object.entries(properties).map(([key, value]) => {
+                // Skip null/undefined/empty values
+                if (value === null || value === undefined || value === '') return null;
+                
+                // Skip geometry fields
+                if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return null;
+
+                return (
+                  <PropertyRow key={key} label={formatLabel(key)} value={value} />
+                );
+              })}
+            </Section>
+          )}
+
+          {/* Export Button */}
+          <div className="pt-4 border-t border-gray-200">
+            <button className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export Property Data
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  );
-};
-
-// Parcel Information Component
-const ParcelInfo = ({ parcel }) => {
-  return (
-    <div className="p-6 space-y-6">
-      {/* Legislative Documents */}
-      <Section title="Legislative Documents">
-        <DocumentItem title="Provincial Policy Statement" />
-        <DocumentItem title="Greenbelt Act" />
-      </Section>
-
-      {/* Strategic Planning */}
-      <Section title="Strategic Planning">
-        <DocumentItem title="Official Plan" />
-        <DocumentItem title="Water & Wastewater Master Plan" />
-      </Section>
-
-      {/* Parcel Details */}
-      <Section title="Parcel Information">
-        <InfoRow icon={MapPin} label="Address" value={parcel.properties.address} />
-        <InfoRow icon={Building2} label="Owner" value={parcel.properties.owner} />
-        <InfoRow icon={LayersIcon} label="Zoning" value={parcel.properties.zoning} />
-        <InfoRow label="Area" value={parcel.properties.area} />
-        <InfoRow label="Land Use" value={parcel.properties.landUse} />
-        <InfoRow label="Building Type" value={parcel.properties.buildingType} />
-        <InfoRow icon={Calendar} label="Year Built" value={parcel.properties.yearBuilt} />
-        <InfoRow icon={DollarSign} label="Assessed Value" value={parcel.properties.assessedValue} />
-        <InfoRow label="Municipality" value={parcel.properties.municipality} />
-        <InfoRow label="Ward" value={parcel.properties.ward} />
-      </Section>
-    </div>
-  );
-};
-
-// Layers Panel Component
-const LayersPanel = ({ layers, onLayerToggle }) => {
-  return (
-    <div className="p-6 space-y-6">
-      {/* Search */}
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="Search layers"
-          className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <LayersIcon className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        <Tab active>All Layers</Tab>
-        <Tab>Turned On</Tab>
-        <Tab>Recently Updated</Tab>
-      </div>
-
-      {/* Map Scope */}
-      <LayerSection title="Map Scope">
-        {layerCategories.mapScope.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Provincial Policy Statement */}
-      <LayerSection title="Provincial Policy Statement" collapsible>
-        {layerCategories.provincialPolicy.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            icon={layer.icon}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Official Plan */}
-      <LayerSection title="Official Plan" collapsible>
-        {layerCategories.officialPlan.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Water & Wastewater Master Plan */}
-      <LayerSection title="Water & Wastewater Master Plan" collapsible>
-        {layerCategories.waterWastewater.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Zoning */}
-      <LayerSection title="Zoning" collapsible>
-        {layerCategories.zoning.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Routes */}
-      <LayerSection title="Routes" collapsible>
-        {layerCategories.routes.map(layer => (
-          <LayerToggle
-            key={layer.id}
-            label={layer.label}
-            enabled={layers?.[layer.id] ?? layer.enabled}
-            onChange={() => onLayerToggle(layer.id)}
-          />
-        ))}
-      </LayerSection>
-
-      {/* Expandable sections */}
-      <LayerSection title="Traffic patterns" collapsible collapsed />
-      <LayerSection title="Environmental risks" collapsible collapsed />
-      <LayerSection title="Infrastructure" collapsible collapsed />
     </div>
   );
 };
@@ -180,89 +93,96 @@ const LayersPanel = ({ layers, onLayerToggle }) => {
 // Helper Components
 const Section = ({ title, children }) => (
   <div className="space-y-3">
-    <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-    <div className="space-y-2">
+    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">{title}</h3>
+    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
       {children}
     </div>
   </div>
 );
 
-const DocumentItem = ({ title }) => (
-  <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-    <span className="text-sm text-gray-700">{title}</span>
-    <div className="flex gap-2">
-      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors">
-        <Download className="w-4 h-4 text-gray-600" />
-      </button>
-      <button className="p-1.5 hover:bg-gray-200 rounded transition-colors">
-        <Eye className="w-4 h-4 text-gray-600" />
-      </button>
-    </div>
+const PropertyRow = ({ label, value }) => (
+  <div className="flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0">
+    <span className="text-sm text-gray-600 font-medium">{label}</span>
+    <span className="text-sm text-gray-900 font-semibold text-right ml-4">
+      {formatValue(value)}
+    </span>
   </div>
 );
 
-const InfoRow = ({ icon: Icon, label, value }) => (
-  <div className="flex items-start gap-3 py-2">
-    {Icon && <Icon className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />}
-    <div className="flex-1 min-w-0">
-      <div className="text-xs text-gray-500 mb-0.5">{label}</div>
-      <div className="text-sm text-gray-900 font-medium">{value}</div>
-    </div>
-  </div>
-);
-
-const Tab = ({ children, active }) => (
-  <button
-    className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-      active
-        ? 'bg-gray-900 text-white'
-        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-    }`}
-  >
-    {children}
-  </button>
-);
-
-const LayerSection = ({ title, children, collapsible, collapsed }) => {
-  const [isOpen, setIsOpen] = React.useState(!collapsed);
-
-  return (
-    <div className="space-y-2">
-      <button
-        onClick={() => collapsible && setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between text-sm font-semibold text-gray-900 ${
-          collapsible ? 'cursor-pointer hover:text-gray-700' : 'cursor-default'
-        }`}
-      >
-        <span>{title}</span>
-        {collapsible && (
-          <span className="text-gray-400">{isOpen ? '▼' : '▶'}</span>
-        )}
-      </button>
-      {isOpen && <div className="space-y-1.5 pl-1">{children}</div>}
-    </div>
-  );
+// Utility Functions
+const formatLabel = (key) => {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/\b\w/g, char => char.toUpperCase())
+    .trim();
 };
 
-const LayerToggle = ({ label, icon, enabled, onChange }) => (
-  <div className="flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded-lg group">
-    <div className="flex items-center gap-2 flex-1 min-w-0">
-      {icon && <span className="text-sm">{icon}</span>}
-      <span className="text-sm text-gray-700 truncate">{label}</span>
-    </div>
-    <button
-      onClick={onChange}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-        enabled ? 'bg-gray-900' : 'bg-gray-300'
-      }`}
-    >
-      <span
-        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-          enabled ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </button>
-  </div>
-);
+const formatValue = (value) => {
+  if (value === null || value === undefined) return 'N/A';
+  
+  if (typeof value === 'number') {
+    // Format large numbers with commas
+    if (value > 1000) {
+      return value.toLocaleString();
+    }
+    return value;
+  }
+  
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No';
+  }
+  
+  // Truncate very long strings
+  const str = String(value);
+  if (str.length > 100) {
+    return str.substring(0, 100) + '...';
+  }
+  
+  return str;
+};
+
+// Group properties by category (customize based on your data structure)
+const groupPropertiesByCategory = (properties) => {
+  const groups = {};
+  
+  // Define category keywords
+  const categoryKeywords = {
+    'Overview': ['id', 'gid', 'name', 'address', 'label', 'type'],
+    'Zoning': ['zone', 'zoning', 'land_use', 'landuse', 'use_code'],
+    'Dimensions': ['area', 'perimeter', 'length', 'width', 'height', 'floor_area'],
+    'Ownership': ['owner', 'occupant', 'tenant'],
+    'Assessment': ['value', 'assessed', 'tax', 'price'],
+    'Building': ['building', 'structure', 'year_built', 'stories', 'units'],
+    'Municipal': ['ward', 'district', 'municipality', 'region'],
+  };
+
+  Object.entries(properties).forEach(([key, value]) => {
+    // Skip null/undefined/empty
+    if (value === null || value === undefined || value === '') return;
+    
+    // Skip geometry
+    if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return;
+
+    // Find matching category
+    let categoryFound = false;
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => key.toLowerCase().includes(keyword))) {
+        if (!groups[category]) groups[category] = {};
+        groups[category][key] = value;
+        categoryFound = true;
+        break;
+      }
+    }
+
+    // If no category found, add to "Other"
+    if (!categoryFound) {
+      if (!groups['Other']) groups['Other'] = {};
+      groups['Other'][key] = value;
+    }
+  });
+
+  return groups;
+};
 
 export default InfoPanel;
