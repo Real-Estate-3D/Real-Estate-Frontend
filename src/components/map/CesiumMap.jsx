@@ -1,12 +1,18 @@
-import React, { useRef, useLayoutEffect, forwardRef, useImperativeHandle, useState } from "react";
+import React, {
+  useRef,
+  useLayoutEffect,
+  forwardRef,
+  useImperativeHandle,
+  useState,
+} from "react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
 // GeoServer configuration
 const GEOSERVER_CONFIG = {
-  baseUrl: 'https://acwaportal.pk/geoserver',
-  workspace: 'realestate',
-  srs: 'EPSG:4326'
+  baseUrl: "http://16.52.55.27:8080/geoserver",
+  workspace: "realestate3d",
+  srs: "EPSG:4326",
 };
 
 const getWMSUrl = () => {
@@ -18,42 +24,42 @@ const getWFSUrl = () => {
 };
 
 const getWMSLayerParams = () => {
-  const defaultLayers = 'realestate:zoning,realestate:regions';
-  
+  const defaultLayers = "realestate:zoning,realestate:regions";
+
   return {
     url: getWMSUrl(),
     layers: defaultLayers,
     parameters: {
-      service: 'WMS',
-      version: '1.1.0',
-      request: 'GetMap',
+      service: "WMS",
+      version: "1.1.0",
+      request: "GetMap",
       transparent: true,
-      format: 'image/png',
-      srs: GEOSERVER_CONFIG.srs
-    }
+      format: "image/png",
+      srs: GEOSERVER_CONFIG.srs,
+    },
   };
 };
 
 // Build GetFeatureInfo URL (WMS - for click detection)
 const buildGetFeatureInfoUrl = (layers, bbox, width, height, x, y) => {
-  const layerNames = Array.isArray(layers) ? layers.join(',') : layers;
+  const layerNames = Array.isArray(layers) ? layers.join(",") : layers;
 
   const params = new URLSearchParams({
-    SERVICE: 'WMS',
-    VERSION: '1.1.1',
-    REQUEST: 'GetFeatureInfo',
-    FORMAT: 'image/png',
-    TRANSPARENT: 'true',
+    SERVICE: "WMS",
+    VERSION: "1.1.1",
+    REQUEST: "GetFeatureInfo",
+    FORMAT: "image/png",
+    TRANSPARENT: "true",
     LAYERS: layerNames,
     QUERY_LAYERS: layerNames,
-    BBOX: bbox.join(','),
+    BBOX: bbox.join(","),
     WIDTH: width,
     HEIGHT: height,
     X: Math.round(x),
     Y: Math.round(y),
     SRS: GEOSERVER_CONFIG.srs,
-    INFO_FORMAT: 'application/json',
-    FEATURE_COUNT: 10
+    INFO_FORMAT: "application/json",
+    FEATURE_COUNT: 10,
   });
 
   return `${getWMSUrl()}?${params.toString()}`;
@@ -63,7 +69,7 @@ const buildGetFeatureInfoUrl = (layers, bbox, width, height, x, y) => {
 const fetchFeatureInfo = async (layers, bbox, width, height, x, y) => {
   try {
     const url = buildGetFeatureInfoUrl(layers, bbox, width, height, x, y);
-    console.log('🖱️ GetFeatureInfo URL:', url);
+    console.log("🖱️ GetFeatureInfo URL:", url);
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -71,7 +77,7 @@ const fetchFeatureInfo = async (layers, bbox, width, height, x, y) => {
     }
 
     const data = await response.json();
-    console.log('📍 GetFeatureInfo response:', data);
+    console.log("📍 GetFeatureInfo response:", data);
 
     if (data.features && data.features.length > 0) {
       return data.features[0]; // Return first feature
@@ -79,13 +85,14 @@ const fetchFeatureInfo = async (layers, bbox, width, height, x, y) => {
 
     return null;
   } catch (error) {
-    console.error('❌ Error fetching feature info:', error);
+    console.error("❌ Error fetching feature info:", error);
     return null;
   }
 };
 
 // Your Ion token
-Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyMGRiNWEzZS05ZjgwLTRhNmEtYTJlYi04NDI5Y2MzOTRlNjIiLCJpZCI6MTg0NTEzLCJpYXQiOjE3MDI1NzIwNDd9.cy0yRicakbgK8QUlEhcwNwOW4IJymv-CKYLrBni3pPw";
+Cesium.Ion.defaultAccessToken =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyMGRiNWEzZS05ZjgwLTRhNmEtYTJlYi04NDI5Y2MzOTRlNjIiLCJpZCI6MTg0NTEzLCJpYXQiOjE3MDI1NzIwNDd9.cy0yRicakbgK8QUlEhcwNwOW4IJymv-CKYLrBni3pPw";
 
 const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
   const cesiumContainer = useRef(null);
@@ -97,7 +104,11 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
     flyToLocation: (longitude, latitude, altitude = 2000) => {
       if (viewerRef.current && !viewerRef.current.isDestroyed()) {
         viewerRef.current.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
+          destination: Cesium.Cartesian3.fromDegrees(
+            longitude,
+            latitude,
+            altitude
+          ),
           orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-45),
@@ -118,27 +129,28 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
 
       try {
         const wmsParams = getWMSLayerParams();
-        
+
         const wmsProvider = new Cesium.WebMapServiceImageryProvider({
           url: wmsParams.url,
           layers: wmsParams.layers,
           parameters: wmsParams.parameters,
-          enablePickFeatures: false
+          enablePickFeatures: false,
         });
 
-        wmsLayerRef.current = viewerRef.current.imageryLayers.addImageryProvider(wmsProvider);
+        wmsLayerRef.current =
+          viewerRef.current.imageryLayers.addImageryProvider(wmsProvider);
         wmsLayerRef.current.alpha = 0.7;
-        
-        console.log('✅ WMS layer added:', wmsParams.layers);
+
+        console.log("✅ WMS layer added:", wmsParams.layers);
       } catch (error) {
-        console.error('❌ Failed to add WMS layer:', error);
+        console.error("❌ Failed to add WMS layer:", error);
       }
     },
     removeWMSLayer: () => {
       if (wmsLayerRef.current && viewerRef.current) {
         viewerRef.current.imageryLayers.remove(wmsLayerRef.current);
         wmsLayerRef.current = null;
-        console.log('🗑️ WMS layer removed');
+        console.log("🗑️ WMS layer removed");
       }
     },
     getViewer: () => viewerRef.current,
@@ -152,7 +164,7 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
     const initCesium = async () => {
       if (isInitialized) return;
       isInitialized = true;
-      
+
       try {
         console.log("🚀 Initializing Cesium...");
 
@@ -174,28 +186,35 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
         console.log("✅ Viewer created");
 
         // Monitor tile loading
-        viewerRef.current.scene.globe.tileLoadProgressEvent.addEventListener((queuedTileCount) => {
-          if (queuedTileCount === 0) {
-            console.log("✅ All tiles loaded!");
-          } else {
-            console.log(`⏳ Loading tiles: ${queuedTileCount} remaining`);
+        viewerRef.current.scene.globe.tileLoadProgressEvent.addEventListener(
+          (queuedTileCount) => {
+            if (queuedTileCount === 0) {
+              console.log("✅ All tiles loaded!");
+            } else {
+              console.log(`⏳ Loading tiles: ${queuedTileCount} remaining`);
+            }
           }
-        });
+        );
 
         // Click handler for WMS features
-        const handler = new Cesium.ScreenSpaceEventHandler(viewerRef.current.scene.canvas);
+        const handler = new Cesium.ScreenSpaceEventHandler(
+          viewerRef.current.scene.canvas
+        );
         handler.setInputAction(async (movement) => {
           // Only process if WMS layer is loaded
           if (!wmsLayerRef.current) {
-            console.log('⚠️ No WMS layer loaded - click ignored');
+            console.log("⚠️ No WMS layer loaded - click ignored");
             return;
           }
 
           const ray = viewerRef.current.camera.getPickRay(movement.position);
-          const cartesian = viewerRef.current.scene.globe.pick(ray, viewerRef.current.scene);
-          
+          const cartesian = viewerRef.current.scene.globe.pick(
+            ray,
+            viewerRef.current.scene
+          );
+
           if (!cartesian) {
-            console.log('❌ No terrain intersection');
+            console.log("❌ No terrain intersection");
             return;
           }
 
@@ -203,7 +222,7 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           const longitude = Cesium.Math.toDegrees(cartographic.longitude);
           const latitude = Cesium.Math.toDegrees(cartographic.latitude);
 
-          console.log('🖱️ Map clicked at:', { longitude, latitude });
+          console.log("🖱️ Map clicked at:", { longitude, latitude });
 
           // Get viewport dimensions
           const canvas = viewerRef.current.scene.canvas;
@@ -213,7 +232,7 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           // Get camera bounds
           const rectangle = viewerRef.current.camera.computeViewRectangle();
           if (!rectangle) {
-            console.log('❌ Could not compute view rectangle');
+            console.log("❌ Could not compute view rectangle");
             return;
           }
 
@@ -221,41 +240,51 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
             Cesium.Math.toDegrees(rectangle.west),
             Cesium.Math.toDegrees(rectangle.south),
             Cesium.Math.toDegrees(rectangle.east),
-            Cesium.Math.toDegrees(rectangle.north)
+            Cesium.Math.toDegrees(rectangle.north),
           ];
 
-          console.log('📦 BBOX:', bbox);
-          console.log('📐 Canvas dimensions:', { width, height });
-          console.log('🎯 Click position:', { x: movement.position.x, y: movement.position.y });
+          console.log("📦 BBOX:", bbox);
+          console.log("📐 Canvas dimensions:", { width, height });
+          console.log("🎯 Click position:", {
+            x: movement.position.x,
+            y: movement.position.y,
+          });
 
           // Convert click position to pixel coordinates
           const x = movement.position.x;
           const y = movement.position.y;
 
           // Query both layers
-          const layers = ['realestate:zoning', 'realestate:regions'];
+          const layers = ["realestate:zoning", "realestate:regions"];
 
           try {
-            console.log('🔍 Fetching feature info...');
-            const featureData = await fetchFeatureInfo(layers, bbox, width, height, x, y);
+            console.log("🔍 Fetching feature info...");
+            const featureData = await fetchFeatureInfo(
+              layers,
+              bbox,
+              width,
+              height,
+              x,
+              y
+            );
 
             if (featureData) {
-              console.log('✅ Feature found:', featureData);
+              console.log("✅ Feature found:", featureData);
               setSelectedFeature(featureData);
-              
+
               // Call the parent callback if provided
               if (onWMSFeatureClick) {
                 onWMSFeatureClick(featureData);
               }
             } else {
-              console.log('❌ No feature found at click location');
+              console.log("❌ No feature found at click location");
               setSelectedFeature(null);
               if (onWMSFeatureClick) {
                 onWMSFeatureClick(null);
               }
             }
           } catch (error) {
-            console.error('❌ Error in click handler:', error);
+            console.error("❌ Error in click handler:", error);
           }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -271,7 +300,6 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
         });
 
         console.log("✅ Initialization complete!");
-
       } catch (error) {
         console.error("❌ Cesium failed:", error);
       }
