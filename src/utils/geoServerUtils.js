@@ -9,15 +9,40 @@ export const GEOSERVER_CONFIG = {
 
 // Available WMS layers
 export const WMS_LAYERS = {
-  ZONING: {
-    id: 'zoning',
-    name: 'realestate:zoning',
-    displayName: 'Zoning',
+  LAND_USE: {
+    id: 'land_use',
+    name: 'realestate3d:land_use',
+    displayName: 'Land Use',
+    workspace: 'realestate3d',
+    srs: 'EPSG:4326'
+  },
+  PARKING_LOTS: {
+    id: 'parking_lots',
+    name: 'realestate3d:parking_lots',
+    displayName: 'Parking Lots',
+    workspace: 'realestate3d',
+    srs: 'EPSG:4326'
   },
   REGIONS: {
     id: 'regions',
-    name: 'realestate:regions',
-    displayName: 'Parcels/Regions',
+    name: 'realestate3d:regions',
+    displayName: 'Regions',
+    workspace: 'realestate3d',
+    srs: 'EPSG:4326'
+  },
+  ZONING: {
+    id: 'zoning',
+    name: 'realestate3d:zoning',
+    displayName: 'Zoning',
+    workspace: 'realestate3d',
+    srs: 'EPSG:4326'
+  },
+  ZONING_POLICY_ROAD_OVERLAY: {
+    id: 'zoning_policy_road_overlay',
+    name: 'realestate3d:zoning_policy_road_overlay',
+    displayName: 'Zoning Policy Road Overlay',
+    workspace: 'realestate3d',
+    srs: 'EPSG:4326'
   }
 };
 

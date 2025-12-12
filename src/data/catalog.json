@@ -1,0 +1,150 @@
+{
+  "mapScope": [
+    {
+      "id": "single_tier_municipality",
+      "name": "Single-Tier Municipality",
+      "enabled": true
+    },
+    {
+      "id": "upper_tier_municipality",
+      "name": "Upper-Tier Municipality",
+      "enabled": false
+    }
+  ],
+  "categories": [
+    
+    {
+      "id": "land_use",
+      "title": "Land Use",
+      "type": "layers",
+      "expanded": true,
+      "layers": [
+        {
+          "id": "land_use",
+          "name": "Land Use",
+          "type": "wms",
+          "layerName": "realestate3d:land_use",
+          "workspace": "realestate3d",
+          "srs": "EPSG:4326",
+          "color": "orange",
+          "enabled": false,
+          "opacity": 0.7,
+          "downloadable": true
+        },
+        {
+          "id": "parking_lots",
+          "name": "Parking Lots",
+          "type": "wms",
+          "layerName": "realestate3d:parking_lots",
+          "workspace": "realestate3d",
+          "srs": "EPSG:4326",
+          "color": "gray",
+          "enabled": false,
+          "opacity": 0.7,
+          "downloadable": true
+        },
+        {
+          "id": "regions",
+          "name": "Regions",
+          "type": "wms",
+          "layerName": "realestate3d:regions",
+          "workspace": "realestate3d",
+          "srs": "EPSG:4326",
+          "color": "purple",
+          "enabled": false,
+          "opacity": 0.7,
+          "downloadable": true
+        }
+      ]
+    },
+    {
+      "id": "greenbelt_act",
+      "title": "Greenbelt Act",
+      "type": "layers",
+      "expanded": false,
+      "layers": [
+        
+      ]
+    },
+    {
+      "id": "official_plan",
+      "title": "Official Plan",
+      "type": "layers",
+      "expanded": false,
+      "layers": [
+        
+      ]
+    },
+    {
+      "id": "water_wastewater",
+      "title": "Water & Wastewater Master Plan",
+      "type": "layers",
+      "expanded": false,
+      "layers": [
+        
+      ]
+    },
+    {
+      "id": "zoning_details",
+      "title": "Zoning",
+      "type": "layers",
+      "expanded": true,
+      "layers": [
+        {
+          "id": "zoning",
+          "name": "Zoning",
+          "type": "wms",
+          "layerName": "realestate3d:zoning",
+          "workspace": "realestate3d",
+          "srs": "EPSG:4326",
+          "color": "blue",
+          "enabled": false,
+          "opacity": 0.7,
+          "downloadable": true
+        },
+        {
+          "id": "zoning_policy_road_overlay",
+          "name": "Zoning Policy Road Overlay",
+          "type": "wms",
+          "layerName": "realestate3d:zoning_policy_road_overlay",
+          "workspace": "realestate3d",
+          "srs": "EPSG:4326",
+          "color": "red",
+          "enabled": false,
+          "opacity": 0.7,
+          "downloadable": true
+        }
+      ]
+    },
+    {
+      "id": "studies",
+      "title": "Studies",
+      "type": "layers",
+      "expanded": false,
+      "layers": [
+        
+      ]
+    },
+    {
+      "id": "traffic_patterns",
+      "title": "Traffic patterns",
+      "type": "layers",
+      "expanded": false,
+      "layers": []
+    },
+    {
+      "id": "environmental_risks",
+      "title": "Environmental risks",
+      "type": "layers",
+      "expanded": false,
+      "layers": []
+    },
+    {
+      "id": "infrastructure",
+      "title": "Infrastructure",
+      "type": "layers",
+      "expanded": false,
+      "layers": []
+    }
+  ]
+}

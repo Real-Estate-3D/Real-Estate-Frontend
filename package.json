@@ -12,11 +12,14 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.17",
     "cesium": "^1.135.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
-    "tailwindcss": "^4.1.17"
+    "shpjs": "^6.2.0",
+    "tailwindcss": "^4.1.17",
+    "tokml": "^0.4.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

@@ -98,6 +98,7 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
   const cesiumContainer = useRef(null);
   const viewerRef = useRef(null);
   const wmsLayerRef = useRef(null);
+  const wmsLayersMapRef = useRef(new Map());
   const [selectedFeature, setSelectedFeature] = useState(null);
 
   useImperativeHandle(ref, () => ({
@@ -111,7 +112,7 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           ),
           orientation: {
             heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-45),
+            pitch: Cesium.Math.toRadians(-90),
             roll: 0.0,
           },
           duration: 2.5,
@@ -153,6 +154,49 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
         console.log("🗑️ WMS layer removed");
       }
     },
+    addSpecificWMSLayer: (layerName, opacity = 0.7) => {
+      if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+      if (wmsLayersMapRef.current.has(layerName)) {
+        console.log(`Layer ${layerName} already exists`);
+        return;
+      }
+
+      try {
+        const wmsProvider = new Cesium.WebMapServiceImageryProvider({
+          url: getWMSUrl(),
+          layers: layerName,
+          parameters: {
+            service: 'WMS',
+            version: '1.1.0',
+            request: 'GetMap',
+            transparent: true,
+            format: 'image/png',
+            srs: 'EPSG:4326',
+          },
+          enablePickFeatures: false,
+        });
+
+        const imageryLayer = viewerRef.current.imageryLayers.addImageryProvider(wmsProvider);
+        imageryLayer.alpha = opacity;
+        imageryLayer.alpha = 0.7;
+        
+        wmsLayersMapRef.current.set(layerName, imageryLayer);
+        console.log(`✅ WMS layer added: ${layerName}`);
+      } catch (error) {
+        console.error(`❌ Failed to add WMS layer ${layerName}:`, error);
+      }
+    },
+    removeSpecificWMSLayer: (layerName) => {
+      if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+      const layer = wmsLayersMapRef.current.get(layerName);
+      if (layer) {
+        viewerRef.current.imageryLayers.remove(layer);
+        wmsLayersMapRef.current.delete(layerName);
+        console.log(`🗑️ WMS layer removed: ${layerName}`);
+      }
+    },
     getViewer: () => viewerRef.current,
   }));
 
@@ -180,10 +224,25 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           vrButton: false,
           infoBox: false,
           selectionIndicator: false,
-          requestRenderMode: false,
+          // Performance optimizations
+          requestRenderMode: true, // Only render when needed
+          maximumRenderTimeChange: Infinity, // Reduce unnecessary renders
         });
 
-        console.log("✅ Viewer created");
+        // Additional performance optimizations
+        viewerRef.current.scene.globe.enableLighting = false;
+        viewerRef.current.scene.fog.enabled = false;
+        viewerRef.current.scene.skyAtmosphere.show = true;
+        viewerRef.current.scene.globe.showGroundAtmosphere = false;
+        
+        // Optimize terrain and imagery loading
+        viewerRef.current.scene.globe.maximumScreenSpaceError = 2; // Default is 2, lower = better quality but slower
+        viewerRef.current.scene.globe.tileCacheSize = 100; // Reduce memory usage
+        
+        // Disable features we don't need for better performance
+        viewerRef.current.scene.screenSpaceCameraController.enableCollisionDetection = false;
+
+        console.log("✅ Viewer created with performance optimizations");
 
         // Monitor tile loading
         viewerRef.current.scene.globe.tileLoadProgressEvent.addEventListener(
@@ -201,9 +260,9 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           viewerRef.current.scene.canvas
         );
         handler.setInputAction(async (movement) => {
-          // Only process if WMS layer is loaded
-          if (!wmsLayerRef.current) {
-            console.log("⚠️ No WMS layer loaded - click ignored");
+          // Check if any WMS layers are loaded (either default or specific)
+          if (!wmsLayerRef.current && wmsLayersMapRef.current.size === 0) {
+            console.log("⚠️ No WMS layers loaded - click ignored");
             return;
           }
 
@@ -254,13 +313,32 @@ const CesiumMap = forwardRef(({ onWMSFeatureClick }, ref) => {
           const x = movement.position.x;
           const y = movement.position.y;
 
-          // Query both layers
-          const layers = ["realestate:zoning", "realestate:regions"];
+          // Collect all enabled layers (both default and specific)
+          const layersToQuery = [];
+          
+          // Add default layers if loaded
+          if (wmsLayerRef.current) {
+            layersToQuery.push("realestate:zoning", "realestate:regions");
+          }
+          
+          // Add all specifically enabled layers
+          wmsLayersMapRef.current.forEach((layer, layerName) => {
+            if (!layersToQuery.includes(layerName)) {
+              layersToQuery.push(layerName);
+            }
+          });
+
+          if (layersToQuery.length === 0) {
+            console.log("⚠️ No layers to query");
+            return;
+          }
+
+          console.log("🔍 Querying layers:", layersToQuery);
 
           try {
             console.log("🔍 Fetching feature info...");
             const featureData = await fetchFeatureInfo(
-              layers,
+              layersToQuery,
               bbox,
               width,
               height,

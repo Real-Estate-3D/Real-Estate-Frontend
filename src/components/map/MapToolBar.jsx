@@ -10,12 +10,12 @@ import {
   Settings 
 } from 'lucide-react';
 
-const MapToolbar = ({ onLayersClick }) => {
+const MapToolbar = ({ setShowLayersPanel }) => {
   const tools = [
     { icon: Search, label: 'Search', onClick: () => console.log('Search') },
     { icon: Ruler, label: 'Measure', onClick: () => console.log('Measure') },
     { icon: Home, label: 'Home', onClick: () => console.log('Home') },
-    { icon: Layers, label: 'Layers', onClick: onLayersClick },
+    { icon: Layers, label: 'Layers', onClick: () => setShowLayersPanel(true) },
     { icon: FileText, label: 'Documents', onClick: () => console.log('Documents') },
     { icon: MousePointer2, label: 'Select', onClick: () => console.log('Select') },
     { icon: Pencil, label: 'Draw', onClick: () => console.log('Draw') },

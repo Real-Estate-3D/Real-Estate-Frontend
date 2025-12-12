@@ -1,88 +1,125 @@
 import React from 'react';
-import { X, Building2, MapPin } from 'lucide-react';
+import { X, Building2, Download } from 'lucide-react';
 
-const InfoPanel = ({ feature, onClose }) => {
+const InfoPanel = ({ feature, onClose, isLayersPanelOpen = false }) => {
   if (!feature) return null;
 
   const properties = feature.properties || {};
   const featureId = feature.id || 'Unknown';
 
-  // Group properties by category (you can customize this logic)
-  const groupedProperties = groupPropertiesByCategory(properties);
+  const positionClass = isLayersPanelOpen ? 'right-[25rem]' : 'right-0';
 
   return (
-    <div className="absolute top-0 right-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-white">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Building2 className="w-5 h-5 text-blue-600" />
+    <div className={`absolute top-0 ${positionClass} h-full w-96 z-40 flex flex-col transition-all duration-300`}>
+      <div className="bg-white shadow-xl m-2 rounded-lg flex-1 flex flex-col border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-gray-700" />
+            <h2 className="text-base font-semibold text-gray-900">Parcel Info</h2>
           </div>
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Property Details</h2>
-            <p className="text-xs text-gray-500">Feature ID: {featureId}</p>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <X className="w-5 h-5 text-gray-500" />
-        </button>
-      </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6 space-y-6">
-          
-          {/* Main Address/Title if available */}
-          {(properties.address || properties.name || properties.label) && (
-            <div className="pb-4 border-b border-gray-200">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {properties.address || properties.name || properties.label}
-                  </h3>
-                </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-4">
+            
+            {(properties.address || properties.name || properties.IDENT) && (
+              <div className="pb-3 border-b border-gray-200">
+                <h3 className="text-base font-semibold text-gray-900">
+                  {properties.address || properties.name || properties.IDENT || 'Unknown Location'}
+                </h3>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Overview</h4>
+              <div className="space-y-2">
+                {properties.area && (
+                  <PropertyRow label="Area" value={`${properties.area} m²`} />
+                )}
+                {properties.IDENT && (
+                  <PropertyRow label="Parcel ID" value={properties.IDENT} />
+                )}
+                {featureId && featureId !== 'Unknown' && (
+                  <PropertyRow label="Feature ID" value={featureId} />
+                )}
               </div>
             </div>
-          )}
 
-          {/* Dynamic Sections Based on Properties */}
-          {Object.entries(groupedProperties).map(([category, props]) => (
-            <Section key={category} title={category}>
-              {Object.entries(props).map(([key, value]) => (
-                <PropertyRow key={key} label={formatLabel(key)} value={value} />
-              ))}
-            </Section>
-          ))}
+            {(properties.zone || properties.ZONE || properties.zoning) && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Zoning</h4>
+                <div className="space-y-2">
+                  <PropertyRow label="Zone" value={properties.zone || properties.ZONE || properties.zoning} />
+                  {properties.zoning_law && (
+                    <PropertyRow label="Zoning Law" value={properties.zoning_law} />
+                  )}
+                  {properties.height_limit && (
+                    <PropertyRow label="Height limit" value={properties.height_limit} />
+                  )}
+                  {properties.floor_area_ratio && (
+                    <PropertyRow label="Floor Area Ratio" value={properties.floor_area_ratio} />
+                  )}
+                  {properties.permitted_uses && (
+                    <PropertyRow label="Permitted Uses" value={properties.permitted_uses} />
+                  )}
+                </div>
+              </div>
+            )}
 
-          {/* If no grouped properties, show all flat */}
-          {Object.keys(groupedProperties).length === 0 && (
-            <Section title="Overview">
-              {Object.entries(properties).map(([key, value]) => {
-                // Skip null/undefined/empty values
-                if (value === null || value === undefined || value === '') return null;
-                
-                // Skip geometry fields
-                if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return null;
+            {(properties.designation || properties.density_target || properties.planned_changes) && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Official Plan</h4>
+                <div className="space-y-2">
+                  {properties.designation && (
+                    <PropertyRow label="Designation" value={properties.designation} />
+                  )}
+                  {properties.density_target && (
+                    <PropertyRow label="Density target" value={properties.density_target} />
+                  )}
+                  {properties.planned_changes && (
+                    <PropertyRow label="Planned changes" value={properties.planned_changes} />
+                  )}
+                </div>
+              </div>
+            )}
 
-                return (
-                  <PropertyRow key={key} label={formatLabel(key)} value={value} />
-                );
-              })}
-            </Section>
-          )}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Layer Style</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Layer Color</span>
+                </div>
+                <div className="w-full h-8 bg-pink-300 border border-gray-300 rounded"></div>
+              </div>
+            </div>
 
-          {/* Export Button */}
-          <div className="pt-4 border-t border-gray-200">
-            <button className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export Property Data
-            </button>
+            {Object.keys(properties).length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">All Properties</h4>
+                <div className="space-y-2">
+                  {Object.entries(properties).map(([key, value]) => {
+                    if (value === null || value === undefined || value === '') return null;
+                    if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return null;
+                    return (
+                      <PropertyRow key={key} label={formatLabel(key)} value={value} />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-gray-200">
+              <button className="w-full py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                <Download className="w-4 h-4" />
+                Export Parcel Info
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -90,30 +127,19 @@ const InfoPanel = ({ feature, onClose }) => {
   );
 };
 
-// Helper Components
-const Section = ({ title, children }) => (
-  <div className="space-y-3">
-    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">{title}</h3>
-    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-      {children}
-    </div>
-  </div>
-);
-
 const PropertyRow = ({ label, value }) => (
-  <div className="flex justify-between items-start py-2 border-b border-gray-200 last:border-b-0">
-    <span className="text-sm text-gray-600 font-medium">{label}</span>
-    <span className="text-sm text-gray-900 font-semibold text-right ml-4">
+  <div className="flex justify-between items-start py-1.5">
+    <span className="text-sm text-gray-600">{label}</span>
+    <span className="text-sm text-gray-900 font-medium text-right ml-4">
       {formatValue(value)}
     </span>
   </div>
 );
 
-// Utility Functions
 const formatLabel = (key) => {
   return key
     .replace(/_/g, ' ')
-    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/([A-Z])/g, ' $1')
     .replace(/\b\w/g, char => char.toUpperCase())
     .trim();
 };
@@ -122,7 +148,6 @@ const formatValue = (value) => {
   if (value === null || value === undefined) return 'N/A';
   
   if (typeof value === 'number') {
-    // Format large numbers with commas
     if (value > 1000) {
       return value.toLocaleString();
     }
@@ -133,56 +158,12 @@ const formatValue = (value) => {
     return value ? 'Yes' : 'No';
   }
   
-  // Truncate very long strings
   const str = String(value);
   if (str.length > 100) {
     return str.substring(0, 100) + '...';
   }
   
   return str;
-};
-
-// Group properties by category (customize based on your data structure)
-const groupPropertiesByCategory = (properties) => {
-  const groups = {};
-  
-  // Define category keywords
-  const categoryKeywords = {
-    'Overview': ['id', 'gid', 'name', 'address', 'label', 'type'],
-    'Zoning': ['zone', 'zoning', 'land_use', 'landuse', 'use_code'],
-    'Dimensions': ['area', 'perimeter', 'length', 'width', 'height', 'floor_area'],
-    'Ownership': ['owner', 'occupant', 'tenant'],
-    'Assessment': ['value', 'assessed', 'tax', 'price'],
-    'Building': ['building', 'structure', 'year_built', 'stories', 'units'],
-    'Municipal': ['ward', 'district', 'municipality', 'region'],
-  };
-
-  Object.entries(properties).forEach(([key, value]) => {
-    // Skip null/undefined/empty
-    if (value === null || value === undefined || value === '') return;
-    
-    // Skip geometry
-    if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return;
-
-    // Find matching category
-    let categoryFound = false;
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(keyword => key.toLowerCase().includes(keyword))) {
-        if (!groups[category]) groups[category] = {};
-        groups[category][key] = value;
-        categoryFound = true;
-        break;
-      }
-    }
-
-    // If no category found, add to "Other"
-    if (!categoryFound) {
-      if (!groups['Other']) groups['Other'] = {};
-      groups['Other'][key] = value;
-    }
-  });
-
-  return groups;
 };
 
 export default InfoPanel;

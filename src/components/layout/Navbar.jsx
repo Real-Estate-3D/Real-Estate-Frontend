@@ -1,9 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Mail } from 'lucide-react';
+import { Search, Mail, Download } from 'lucide-react';
 import NotificationsDropdown from './NotificationsDropdown';
 
-const Navbar = () => {
+const Navbar = ({ onExportClick, exportCount = 0 }) => {
   const navigate = useNavigate();
 
   return (
@@ -22,6 +22,22 @@ const Navbar = () => {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Export Manager Button */}
+        {onExportClick && (
+          <button 
+            onClick={onExportClick}
+            className="relative p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
+            title="Export Manager"
+          >
+            <Download className="w-5 h-5" />
+            {exportCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                {exportCount > 9 ? '9+' : exportCount}
+              </span>
+            )}
+          </button>
+        )}
+        
         {/* Desktop Invite Button */}
         <button 
           onClick={() => navigate('/invite')}
