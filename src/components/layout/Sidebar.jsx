@@ -1,90 +1,129 @@
+// File: src/components/layout/Sidebar.jsx
+
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { 
-  Home, 
-  FolderOpen, 
-  CheckSquare, 
-  GitBranch, 
-  Map, 
+  LayoutGrid, 
+  Grid, 
+  List, 
+  Map as MapIcon, 
   Building2, 
   Calculator, 
   FileText, 
-  Settings, 
-  ChevronLeft,
-  ChevronRight
+  Settings,
+  BarChart3
 } from 'lucide-react';
 
+const Tooltip = ({ children, label, isVisible, position }) => {
+  if (!isVisible || !position) return null;
+  
+  return createPortal(
+    <div
+      role="tooltip"
+      style={{
+        position: 'fixed',
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        transform: 'translateY(-50%)',
+      }}
+      className="pointer-events-none z-9999 whitespace-nowrap rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white shadow-xl animate-in fade-in slide-in-from-left-2 duration-200"
+    >
+      {label}
+    </div>,
+    document.body
+  );
+};
+
 const Sidebar = () => {
-  const [isExpanded, setIsExpanded] = useState(true);
   const location = useLocation();
+  const [hoveredItem, setHoveredItem] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
 
   const menuItems = [
-    { icon: Home, label: 'Dashboard', path: '/' },
-    { icon: FolderOpen, label: 'Projects', path: '/projects' },
-    { icon: CheckSquare, label: 'Approvals', path: '/approvals' },
-    { icon: GitBranch, label: 'Workflows', path: '/workflows' },
-    { icon: Map, label: 'Mapping & Zoning', path: '/mapping' },
-    { icon: Building2, label: 'Municipal Hub', path: '/municipal' },
-    { icon: Calculator, label: 'Accounting', path: '/accounting' },
-    { icon: FileText, label: 'Legislation', path: '/legislation' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: LayoutGrid, path: '/', label: 'Dashboard' },
+    { icon: Grid, path: '/projects', label: 'Projects' },
+    { icon: List, path: '/approvals', label: 'Approvals' },
+    { icon: BarChart3, path: '/workflows', label: 'Workflows' },
+    { icon: MapIcon, path: '/mapping', label: 'Mapping' },
+    { icon: Building2, path: '/municipal', label: 'Municipal Hub' },
+    { icon: Calculator, path: '/accounting', label: 'Accounting' },
+    { icon: FileText, path: '/legislation', label: 'Legislation' },
+    { icon: Settings, path: '/settings', label: 'Settings' },
   ];
 
-  return (
-    <div className={`transition-all duration-300 bg-white border-r border-gray-200 flex-shrink-0 ${
-      isExpanded ? 'w-64' : 'w-20'
-    }`}>
-      <div className="h-full flex flex-col">
-        {/* Logo & Collapse Button */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Map className="w-6 h-6 text-white" />
-            </div>
-            {isExpanded && (
-              <span className="text-lg font-semibold text-gray-900">BluePrint</span>
-            )}
-          </div>
-          
-          {/* Collapse/Expand Toggle Button */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
-            title={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            {isExpanded ? (
-              <ChevronLeft className="w-5 h-5" />
-            ) : (
-              <ChevronRight className="w-5 h-5" />
-            )}
-          </button>
-        </div>
+  const handleMouseEnter = (e, label) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      x: rect.right + 12,
+      y: rect.top + rect.height / 2,
+    });
+    setHoveredItem(label);
+  };
 
-        {/* Menu Items */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {menuItems.map((item, idx) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={idx}
-                to={item.path}
-                className={`w-full flex items-center gap-3 py-3 text-sm transition-colors cursor-pointer ${
-                  isExpanded ? 'px-4' : 'px-0 justify-center'
-                } ${
-                  isActive
-                    ? 'text-blue-600 bg-blue-50 border-r-4 border-blue-600'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-                title={!isExpanded ? item.label : ''}
-              >
-                <div className={`flex items-center gap-3 ${!isExpanded && 'w-full justify-center'}`}>
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {isExpanded && <span className="text-left">{item.label}</span>}
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
+  const handleMouseLeave = () => {
+    setHoveredItem(null);
+    setTooltipPosition(null);
+  };
+
+  return (
+    <div className="w-14 h-full bg-white flex flex-col shrink-0 z-50 rounded-xl overflow-hidden relative">
+      {/* Logo Area */}
+      <div className="h-14 flex items-center justify-center border-b border-slate-700/50">
+        <div className="w-9 h-9 flex items-center justify-center">
+            <svg 
+              viewBox="0 0 24 24" 
+              className="w-6 h-6 text-blue-400"
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2.5"
+            >
+              <path d="M3 3v18h18" />
+              <path d="M18 9l-5 5-4-4-3 3" />
+            </svg>
+        </div>
+      </div>
+
+      {/* Menu Items */}
+      <nav className="flex-1 flex flex-col items-center py-3 gap-0.5 overflow-y-auto overflow-x-visible">
+        {menuItems.map((item, idx) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={idx}
+              to={item.path}
+              aria-label={item.label}
+              onMouseEnter={(e) => handleMouseEnter(e, item.label)}
+              onMouseLeave={handleMouseLeave}
+              className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <item.icon className="w-[18px] h-[18px]" />
+            </Link>
+          );
+        })}
+      </nav>
+      
+      <Tooltip 
+        label={hoveredItem} 
+        isVisible={!!hoveredItem} 
+        position={tooltipPosition}
+      />
+      
+      {/* Bottom Item */}
+      <div className="pb-3 flex justify-center">
+         <button
+           className="relative p-2.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all duration-200"
+           aria-label="App menu"
+           onMouseEnter={(e) => handleMouseEnter(e, 'App menu')}
+           onMouseLeave={handleMouseLeave}
+           type="button"
+         >
+            <LayoutGrid className="w-[18px] h-[18px]" /> 
+         </button>
       </div>
     </div>
   );

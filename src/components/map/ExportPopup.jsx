@@ -1,3 +1,5 @@
+// File: src/components/map/ExportPopup.jsx
+
 import React from 'react';
 import { X, Download, FileJson, Map, Layers, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -38,7 +40,7 @@ const ExportPopup = ({ exports, onClose, onClearExport, onClearAll }) => {
   };
 
   return (
-    <div className="fixed top-16 right-4 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 max-h-[calc(100vh-5rem)] flex flex-col">
+    <div className="fixed top-16 right-4 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[calc(100vh-5rem)] flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center gap-2">
           <Download className="w-5 h-5 text-gray-700" />

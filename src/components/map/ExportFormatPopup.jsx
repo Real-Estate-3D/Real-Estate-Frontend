@@ -1,3 +1,5 @@
+// File: src/components/map/ExportFormatPopup.jsx
+
 import React from 'react';
 import { X, FileJson, Map, Archive } from 'lucide-react';
 

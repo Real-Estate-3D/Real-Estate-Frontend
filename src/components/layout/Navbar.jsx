@@ -1,76 +1,49 @@
+// File: src/components/layout/Navbar.jsx
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Mail, Download } from 'lucide-react';
-import NotificationsDropdown from './NotificationsDropdown';
+import { Search, Plus } from 'lucide-react';
 
 const Navbar = ({ onExportClick, exportCount = 0 }) => {
   const navigate = useNavigate();
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
-      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-        <div className="flex-1 max-w-xl min-w-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search projects..."
-              className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-            />
-          </div>
+    <header className="h-14 bg-white rounded-xl flex items-center justify-between px-4 sm:px-5 flex-shrink-0 z-40 shadow-sm">
+      {/* Search Bar */}
+      <div className="flex-1 max-w-lg">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search projects, submissions, or zoning..."
+            className="w-full pl-9 pr-4 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all duration-200"
+          />
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Export Manager Button */}
-        {onExportClick && (
-          <button 
-            onClick={onExportClick}
-            className="relative p-2 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
-            title="Export Manager"
-          >
-            <Download className="w-5 h-5" />
-            {exportCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
-                {exportCount > 9 ? '9+' : exportCount}
-              </span>
-            )}
-          </button>
-        )}
-        
-        {/* Desktop Invite Button */}
-        <button 
-          onClick={() => navigate('/invite')}
-          className="hidden md:flex px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg items-center gap-2"
-        >
-          <Mail className="w-4 h-4" />
-          <span>Invite User</span>
+      <div className="flex items-center gap-2 ml-4">
+        {/* Add Button */}
+        <button className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200">
+          <Plus className="w-4 h-4 text-gray-500" />
         </button>
-        
-        {/* Mobile Invite Button */}
-        <button 
-          onClick={() => navigate('/invite')}
-          className="md:hidden p-2 hover:bg-gray-100 rounded-lg text-gray-600"
-        >
-          <Mail className="w-5 h-5" />
-        </button>
-        
-        {/* Notifications Dropdown */}
-        <NotificationsDropdown />
-        
-        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-gray-200">
-          <span className="hidden sm:inline px-3 py-1 bg-gray-900 text-white text-xs font-medium rounded">
-            City Official
-          </span>
-          <div className="hidden md:flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">John Doe</span>
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-              JD
-            </div>
-          </div>
-          <div className="md:hidden w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-            JD
-          </div>
+
+        <div className="w-px h-5 bg-gray-200 mx-1"></div>
+
+        {/* User Profile Area */}
+        <div className="flex items-center gap-2 py-1 pl-1 pr-2.5 bg-gray-50 border border-gray-100 rounded-xl">
+           <div className="w-7 h-7 rounded-lg overflow-hidden">
+                <img 
+                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" 
+                    alt="User"
+                    className="w-full h-full object-cover" 
+                />
+           </div>
+           
+           <span className="text-sm font-medium text-gray-800">John Doe</span>
+           
+           <span className="px-1.5 py-0.5 bg-gray-200 text-gray-600 text-[11px] font-medium rounded">
+             City Official
+           </span>
         </div>
       </div>
     </header>

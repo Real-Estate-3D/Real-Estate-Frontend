@@ -1,169 +1,153 @@
-import React from 'react';
-import { X, Building2, Download } from 'lucide-react';
+// File: src/components/map/InfoPanel.jsx
 
-const InfoPanel = ({ feature, onClose, isLayersPanelOpen = false }) => {
-  if (!feature) return null;
+import React, { memo, useMemo } from 'react';
+import { X, Download } from 'lucide-react';
 
-  const properties = feature.properties || {};
-  const featureId = feature.id || 'Unknown';
+// Memoized info row component
+const InfoRow = memo(({ label, value, isBold = false }) => (
+    <div className="flex flex-col">
+        <span className="text-sm text-gray-500 mb-0.5">{label}</span>
+        <span className={`text-sm text-gray-900 ${isBold ? 'font-semibold' : 'font-medium'}`}>{value}</span>
+    </div>
+));
 
-  const positionClass = isLayersPanelOpen ? 'right-[25rem]' : 'right-0';
+InfoRow.displayName = 'InfoRow';
+
+const InfoPanel = memo(({ feature, onClose }) => {
+  // Memoize property extraction to prevent recalculation
+  const panelData = useMemo(() => {
+    if (!feature) return null;
+
+    const properties = feature.properties || {};
+    
+    // Extract actual data from properties
+    const title = properties.address_full || properties.ADDRESS || properties.FULL_ADDRESS || "Property Details";
+    const parcelId = properties.roll_number || properties.ROLL_NUMBER || properties.ARN || properties.id || "N/A";
+    
+    // Calculate area from geometry if available
+    let area = "N/A";
+    if (properties.Shape__Are || properties.SHAPE_AREA || properties.area) {
+      const areaValue = properties.Shape__Are || properties.SHAPE_AREA || properties.area;
+      area = `${parseFloat(areaValue).toFixed(2)} m²`;
+    }
+    
+    // Zoning information
+    const zone = properties.ZN_ZONE || properties.ZONE_1 || properties.zone || "N/A";
+    const zoningLaw = properties.BYLAW_CHAP || properties.bylaw || "N/A";
+    const heightLimit = properties.height_limit || properties.HEIGHT_LIMIT || "N/A";
+    const far = properties.ZN_FSI_DEN || properties.floor_area_ratio || properties.FSI_TOTAL || "N/A";
+    const permittedUses = properties.permitted_uses || properties.PERMITTED_USES || "N/A";
+    
+    // Official Plan
+    const designation = properties.ZN_LU_CATE || properties.designation || "N/A";
+    const densityTarget = properties.density_target || properties.DENSITY || "N/A";
+    const plannedChanges = properties.planned_changes || properties.ZN_STATUS || "None";
+
+    return {
+      title,
+      parcelId,
+      area,
+      zone,
+      zoningLaw,
+      heightLimit,
+      far,
+      permittedUses,
+      designation,
+      densityTarget,
+      plannedChanges
+    };
+  }, [feature]);
+
+  if (!panelData) return null;
+
+  const {
+    title,
+    parcelId,
+    area,
+    zone,
+    zoningLaw,
+    heightLimit,
+    far,
+    permittedUses,
+    designation,
+    densityTarget,
+    plannedChanges
+  } = panelData;
 
   return (
-    <div className={`absolute top-0 ${positionClass} h-full w-96 z-40 flex flex-col transition-all duration-300`}>
-      <div className="bg-white shadow-xl m-2 rounded-lg flex-1 flex flex-col border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-gray-700" />
-            <h2 className="text-base font-semibold text-gray-900">Parcel Info</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+    <div className="w-full mt-2 mb-2 flex-1 min-h-0 bg-white rounded-xl flex flex-col overflow-hidden shadow-lg border border-gray-100">
+      {/* Header */}
+      <div className="bg-white px-3 py-2.5 flex items-center justify-between border-b border-gray-100 shrink-0">
+        <div className="min-w-0 flex-1 pr-2">
+           <h2 className="text-sm font-semibold text-gray-900 truncate">{title}</h2>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-gray-100 rounded-lg transition-all duration-200"
+        >
+          <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
+        
+        {/* Overview Section */}
+        <div>
+            <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Overview</h3>
+            <div className="space-y-3">
+                <InfoRow label="Area" value={area} isBold />
+                <div className="flex flex-col">
+                    <span className="text-sm text-gray-500 mb-0.5">Parcel ID</span>
+                    <span className="text-sm font-medium text-gray-900">{parcelId}</span>
+                </div>
+            </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 space-y-4">
-            
-            {(properties.address || properties.name || properties.IDENT) && (
-              <div className="pb-3 border-b border-gray-200">
-                <h3 className="text-base font-semibold text-gray-900">
-                  {properties.address || properties.name || properties.IDENT || 'Unknown Location'}
-                </h3>
-              </div>
-            )}
+        <div className="h-px bg-gray-100"></div>
 
+        {/* Zoning Section */}
+        <div>
+            <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Zoning</h3>
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Overview</h4>
-              <div className="space-y-2">
-                {properties.area && (
-                  <PropertyRow label="Area" value={`${properties.area} m²`} />
-                )}
-                {properties.IDENT && (
-                  <PropertyRow label="Parcel ID" value={properties.IDENT} />
-                )}
-                {featureId && featureId !== 'Unknown' && (
-                  <PropertyRow label="Feature ID" value={featureId} />
-                )}
-              </div>
+                <div className="flex flex-col">
+                    <span className="text-sm text-gray-500 mb-0.5">Zone</span>
+                    <span className="text-sm font-semibold text-gray-900">{zone}</span>
+                </div>
+                <InfoRow label="Zoning Law" value={zoningLaw} isBold />
+                <InfoRow label="Height Limit" value={heightLimit} isBold />
+                <InfoRow label="Floor Area Ratio" value={far} isBold />
+                <div className="flex flex-col">
+                    <span className="text-sm text-gray-500 mb-0.5">Permitted Uses</span>
+                    <span className="text-sm font-semibold text-gray-900">{permittedUses}</span>
+                </div>
             </div>
+        </div>
 
-            {(properties.zone || properties.ZONE || properties.zoning) && (
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Zoning</h4>
-                <div className="space-y-2">
-                  <PropertyRow label="Zone" value={properties.zone || properties.ZONE || properties.zoning} />
-                  {properties.zoning_law && (
-                    <PropertyRow label="Zoning Law" value={properties.zoning_law} />
-                  )}
-                  {properties.height_limit && (
-                    <PropertyRow label="Height limit" value={properties.height_limit} />
-                  )}
-                  {properties.floor_area_ratio && (
-                    <PropertyRow label="Floor Area Ratio" value={properties.floor_area_ratio} />
-                  )}
-                  {properties.permitted_uses && (
-                    <PropertyRow label="Permitted Uses" value={properties.permitted_uses} />
-                  )}
-                </div>
-              </div>
-            )}
+        <div className="h-px bg-gray-100"></div>
 
-            {(properties.designation || properties.density_target || properties.planned_changes) && (
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Official Plan</h4>
-                <div className="space-y-2">
-                  {properties.designation && (
-                    <PropertyRow label="Designation" value={properties.designation} />
-                  )}
-                  {properties.density_target && (
-                    <PropertyRow label="Density target" value={properties.density_target} />
-                  )}
-                  {properties.planned_changes && (
-                    <PropertyRow label="Planned changes" value={properties.planned_changes} />
-                  )}
-                </div>
-              </div>
-            )}
-
+        {/* Official Plan Section */}
+         <div>
+            <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Official Plan</h3>
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Layer Style</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Layer Color</span>
-                </div>
-                <div className="w-full h-8 bg-pink-300 border border-gray-300 rounded"></div>
-              </div>
+                <InfoRow label="Designation" value={designation} isBold />
+                <InfoRow label="Density Target" value={densityTarget} isBold />
+                <InfoRow label="Planned Changes" value={plannedChanges} isBold />
             </div>
+        </div>
 
-            {Object.keys(properties).length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">All Properties</h4>
-                <div className="space-y-2">
-                  {Object.entries(properties).map(([key, value]) => {
-                    if (value === null || value === undefined || value === '') return null;
-                    if (key === 'geom' || key === 'the_geom' || key === 'geometry' || key === 'bbox') return null;
-                    return (
-                      <PropertyRow key={key} label={formatLabel(key)} value={value} />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-gray-200">
-              <button className="w-full py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+         {/* Export Button */}
+         <div className="pt-2">
+            <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm font-medium transition-all duration-200">
                 <Download className="w-4 h-4" />
                 Export Parcel Info
-              </button>
-            </div>
-          </div>
-        </div>
+            </button>
+         </div>
+
       </div>
     </div>
   );
-};
+});
 
-const PropertyRow = ({ label, value }) => (
-  <div className="flex justify-between items-start py-1.5">
-    <span className="text-sm text-gray-600">{label}</span>
-    <span className="text-sm text-gray-900 font-medium text-right ml-4">
-      {formatValue(value)}
-    </span>
-  </div>
-);
-
-const formatLabel = (key) => {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/\b\w/g, char => char.toUpperCase())
-    .trim();
-};
-
-const formatValue = (value) => {
-  if (value === null || value === undefined) return 'N/A';
-  
-  if (typeof value === 'number') {
-    if (value > 1000) {
-      return value.toLocaleString();
-    }
-    return value;
-  }
-  
-  if (typeof value === 'boolean') {
-    return value ? 'Yes' : 'No';
-  }
-  
-  const str = String(value);
-  if (str.length > 100) {
-    return str.substring(0, 100) + '...';
-  }
-  
-  return str;
-};
+InfoPanel.displayName = 'InfoPanel';
 
 export default InfoPanel;

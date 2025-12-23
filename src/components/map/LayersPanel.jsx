@@ -1,192 +1,193 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, X, Layers, Download } from 'lucide-react';
-import catalogData from '../../data/catalog.json';
+// File: src/components/map/LayersPanel.jsx
+
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import { 
+  Layers, 
+  Search, 
+  Plus, 
+  ChevronDown, 
+  ChevronRight,
+  Loader2,
+  Download
+} from 'lucide-react';
+import { fetchGeoServerLayers, groupLayersByCategory, filterLayersByMunicipality } from '../../utils/geoServerLayerManager';
 import ExportFormatPopup from './ExportFormatPopup';
 
-const LayersPanel = ({ onClose, onLayerToggle, onMapScopeToggle, enabledLayers = {} }) => {
-  const [catalog, setCatalog] = useState(catalogData);
+// Memoized Toggle component
+const Toggle = memo(({ checked, onChange, isLoading }) => (
+    <button 
+        onClick={() => onChange(!checked)}
+        disabled={isLoading}
+        className={`w-10 h-[22px] rounded-full transition-all duration-200 relative flex items-center ${
+            isLoading ? 'bg-gray-300 cursor-wait' : checked ? 'bg-blue-500' : 'bg-gray-200'
+        }`}
+    >
+        {isLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="w-3 h-3 text-gray-600 animate-spin" />
+            </div>
+        ) : (
+            <div 
+                className={`absolute left-0.5 w-[18px] h-[18px] bg-white rounded-full shadow-md transition-all duration-200 ${
+                    checked ? 'translate-x-[18px]' : 'translate-x-0'
+                }`}
+            />
+        )}
+    </button>
+));
+
+Toggle.displayName = 'Toggle';
+
+// Memoized Layer Item
+const LayerItem = memo(({ layer, isEnabled, isLoading, onToggle, onExport }) => (
+  <div className="flex items-center justify-between py-1.5 pl-0.5 pr-0.5 hover:bg-gray-50 rounded-lg text-xs transition-all duration-150">
+    <div className="flex items-center gap-2.5">
+        <Toggle 
+            checked={isEnabled}
+            isLoading={isLoading}
+            onChange={(c) => onToggle(layer.name, c, { type: 'wms', layerName: layer.name, opacity: layer.opacity })}
+        />
+        <span className={`text-gray-600 ${isLoading ? 'opacity-50' : ''}`}>{layer.title}</span>
+    </div>
+    <button 
+      onClick={() => onExport(layer)}
+      className="p-1 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-all duration-200"
+      title="Export Layer"
+    >
+        <Download className="w-3 h-3" />
+    </button>
+  </div>
+));
+
+LayerItem.displayName = 'LayerItem';
+
+// Memoized Category Section
+const CategorySection = memo(({ category, expanded, onToggle, enabledLayers, loadingLayers, onLayerToggle, onExport, searchQuery }) => {
+  // Filter layers by search query
+  const filteredLayers = useMemo(() => {
+    if (!searchQuery) return category.layers;
+    return category.layers.filter(layer => 
+      layer.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [category.layers, searchQuery]);
+
+  if (filteredLayers.length === 0 && searchQuery) return null;
+
+  return (
+    <div className="mb-2">
+      <button 
+        onClick={() => onToggle(category.id)}
+        className="flex items-center justify-between w-full py-1.5 group"
+      >
+        <span className="font-semibold text-xs text-gray-800 group-hover:text-blue-600 transition-all duration-200">
+          {category.title}
+        </span>
+        {expanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+      </button>
+      
+      {expanded && (
+        <div className="pl-0.5 space-y-0">
+          {filteredLayers.map(layer => (
+            <LayerItem
+              key={layer.name}
+              layer={layer}
+              isEnabled={enabledLayers[layer.name] || false}
+              isLoading={loadingLayers[layer.name] || false}
+              onToggle={onLayerToggle}
+              onExport={onExport}
+            />
+          ))}
+          {filteredLayers.length === 0 && (
+            <p className="text-xs text-gray-400 py-1.5 italic">No layers available</p>
+          )}
+        </div>
+      )}
+      <div className="mt-2 h-px bg-gray-100 last:hidden"></div>
+    </div>
+  );
+});
+
+CategorySection.displayName = 'CategorySection';
+
+const LayersPanel = memo(({ onClose, onLayerToggle, onMapScopeToggle, enabledLayers = {}, loadingLayers = {}, currentMunicipality }) => {
   const [activeTab, setActiveTab] = useState('All Layers');
+  const [allLayers, setAllLayers] = useState([]);
+  const [filteredCategories, setFilteredCategories] = useState([]);
   const [expandedSections, setExpandedSections] = useState({});
-  const [mapScopeState, setMapScopeState] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [exportPopup, setExportPopup] = useState(null);
 
   useEffect(() => {
-    const initialExpanded = {};
-    const initialMapScope = {};
-    catalog.categories.forEach(category => {
-      initialExpanded[category.id] = category.expanded || false;
-    });
-    catalog.mapScope.forEach(scope => {
-      initialMapScope[scope.id] = scope.enabled || false;
-    });
-    setExpandedSections(initialExpanded);
-    setMapScopeState(initialMapScope);
-  }, []);
+    let mounted = true;
+    
+    async function loadLayers() {
+      setLoading(true);
+      try {
+        const layers = await fetchGeoServerLayers();
+        
+        if (!mounted) return;
+        
+        setAllLayers(layers);
+        
+        // Filter by municipality if selected
+        const layersToGroup = currentMunicipality 
+          ? filterLayersByMunicipality(layers, currentMunicipality)
+          : layers;
+          
+        const categories = groupLayersByCategory(layersToGroup);
+        setFilteredCategories(categories);
+        
+        // Default expand all
+        const initialExpanded = {};
+        categories.forEach(cat => {
+          initialExpanded[cat.id] = true;
+        });
+        setExpandedSections(initialExpanded);
+      } catch (error) {
+        console.error("Error loading layers", error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+    
+    loadLayers();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [currentMunicipality]);
 
-  const toggleSection = (categoryId) => {
+  const toggleSection = useCallback((categoryId) => {
     setExpandedSections(prev => ({
       ...prev,
       [categoryId]: !prev[categoryId]
     }));
-  };
+  }, []);
 
-  const handleLayerToggle = (layerId, currentState, layerData) => {
-    if (onLayerToggle) {
-      onLayerToggle(layerId, !currentState, layerData);
-    }
-  };
-
-  const handleMapScopeToggle = (scopeId, currentState) => {
-    const newState = !currentState;
-    setMapScopeState(prev => ({
-      ...prev,
-      [scopeId]: newState
-    }));
-    if (onMapScopeToggle) {
-      onMapScopeToggle(scopeId, newState);
-    }
-  };
-  const handleDownload = (item) => {
-    if (item.url) {
-      window.open(item.url, '_blank');
-    } else if (item.layerName) {
-      setExportPopup(item);
-    } else {
-      console.log(`Download ${item.name}`);
-    }
-  };
-
-  const handleExport = (layer, format) => {
+  const handleExport = useCallback((layer, format) => {
     const event = new CustomEvent('exportLayer', {
       detail: {
-        layerName: layer.layerName,
+        layerName: layer.name,
         format: format,
-        url: 'http://16.52.55.27:8080/geoserver/realestate3d/wfs'
+        url: 'http://16.52.55.27:8080/geoserver/municipal_planning/wfs' // Base URL from config
       }
     });
     window.dispatchEvent(event);
-  };
+  }, []);
 
-  const getColorClass = (color) => {
-    const colorMap = {
-      orange: 'bg-orange-500',
-      green: 'bg-green-500',
-      red: 'bg-red-500',
-      blue: 'bg-blue-500',
-      darkgreen: 'bg-green-700',
-      lime: 'bg-lime-500',
-      cyan: 'bg-cyan-500',
-      yellow: 'bg-yellow-400',
-      purple: 'bg-purple-500',
-      lightblue: 'bg-blue-300',
-      lightyellow: 'bg-yellow-200',
-      gold: 'bg-yellow-600',
-      darkred: 'bg-red-700',
-      crimson: 'bg-red-600',
-      darkpurple: 'bg-purple-700',
-      violet: 'bg-violet-500',
-      gray: 'bg-gray-500',
-      darkgray: 'bg-gray-700',
-    };
-    return colorMap[color] || 'bg-gray-400';
-  };
+  const handleExportClick = useCallback((layer) => {
+    setExportPopup(layer);
+  }, []);
 
- 
+  const handleSearchChange = useCallback((e) => {
+    setSearchQuery(e.target.value);
+  }, []);
 
-  const renderLayerItem = (layer) => {
-    const isEnabled = enabledLayers[layer.id] || false;
-    
-    return (
-      <div
-        key={layer.id}
-        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 group"
-      >
-        <span className="flex-1 text-sm text-gray-700 group-hover:text-gray-900">
-          {layer.name}
-        </span>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={isEnabled}
-            onChange={() => handleLayerToggle(layer.id, isEnabled, layer)}
-            className="sr-only peer"
-          />
-          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-        </label>
-        {layer.downloadable && layer.layerName && (
-          <button 
-            onClick={() => handleDownload(layer)}
-            className=" p-1 hover:bg-gray-200 rounded cursor-pointer transition-all"
-            title="Export layer"
-          >
-            <Download color='grey' className="w-4 h-4 text-gray-600 " />
-          </button>
-        )}
-      </div>
-    );
-  };
-
-
-  const renderCategory = (category) => {
-    const isExpanded = expandedSections[category.id];
-
-    return (
-      <div key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
-        <button
-          onClick={() => toggleSection(category.id)}
-          className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
-        >
-          <span className="text-sm font-medium text-gray-900">{category.title}</span>
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
-          )}
-        </button>
-
-        {isExpanded && (
-          <div className="bg-white">
-            {category.type === 'documents' ? (
-              <div className="divide-y divide-gray-100">
-                {category.items?.map(renderDocumentItem)}
-              </div>
-            ) : category.type === 'layers' ? (
-              <div className="divide-y divide-gray-100">
-                {category.layers && category.layers.length > 0 ? (
-                  category.layers.map(renderLayerItem)
-                ) : (
-                  <div className="px-3 py-4 text-sm text-gray-400 text-center">
-                    No layers available
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="px-3 py-4 text-sm text-gray-400 text-center">
-                Unknown category type
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const filteredCategories = () => {
-    if (activeTab === 'Turned On') {
-      return catalog.categories.map(category => {
-        if (category.type === 'layers' && category.layers) {
-          const activeLayers = category.layers.filter(layer => enabledLayers[layer.id]);
-          if (activeLayers.length > 0) {
-            return { ...category, layers: activeLayers };
-          }
-          return null;
-        }
-        return category;
-      }).filter(Boolean);
-    }
-    return catalog.categories;
-  };
-
+  // Memoize tab buttons to prevent recreation
+  const tabs = useMemo(() => ['All Layers', 'Turned On', 'Recently Updated'], []);
 
   return (
     <>
@@ -197,50 +198,82 @@ const LayersPanel = ({ onClose, onLayerToggle, onMapScopeToggle, enabledLayers =
           onExport={handleExport}
         />
       )}
-      
-      <div className="absolute top-0 right-0 h-full w-96 z-50 flex flex-col">
-        <div className='bg-white shadow-xl m-2 rounded-lg flex-1 flex flex-col border border-gray-200 overflow-hidden'>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white shrink-0">
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-gray-700" />
-              <h2 className="text-base font-semibold text-gray-900">Layers</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
+
+      {/* Main Container */}
+      <div className="w-full flex py-2 flex-col flex-1 min-h-0 overflow-hidden">
+        
+        {/* Main Layers Card */}
+        <div className="bg-white shadow-lg border rounded-xl border-gray-100 overflow-hidden flex-1 flex flex-col min-h-0">
+          {/* Header */}
+          <div className="px-4 py-2.5 border-b border-gray-100 bg-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-blue-500" />
+                  <span className="font-semibold text-sm text-gray-900">
+                    {currentMunicipality ? `${currentMunicipality} Layers` : 'Layers'}
+                  </span>
+              </div>
+              <button className="p-1 hover:bg-gray-100 rounded-lg transition-all duration-200">
+                  <Plus className="w-4 h-4 text-gray-400" />
+              </button>
           </div>
 
-        <div className="flex border-b border-gray-200 bg-gray-50 shrink-0">
-          <div className="space-y-2 p-4">
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Map Scope</h3>
-            <div className="space-y-2">
-              {catalog.mapScope.map((scope) => (
-                <label key={scope.id} className="flex items-center gap-2 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={mapScopeState[scope.id] || false}
-                    onChange={() => handleMapScopeToggle(scope.id, mapScopeState[scope.id])}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          {/* Search & Tabs */}
+          <div className="p-3 border-b border-gray-50 space-y-2.5 bg-white">
+              <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input 
+                      type="text" 
+                      placeholder="Search layers..." 
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 placeholder-gray-400"
                   />
-                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{scope.name}</span>
-                </label>
-              ))}
-            </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                  {tabs.map(tab => (
+                      <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`font-medium pb-0.5 transition-all duration-200 ${
+                              activeTab === tab 
+                              ? 'text-blue-600 border-b-2 border-blue-600' 
+                              : 'text-gray-400 hover:text-gray-600'
+                          }`}
+                      >
+                          {tab}
+                      </button>
+                  ))}
+              </div>
           </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-2">
-            {filteredCategories().map(renderCategory)}
-          </div>
+          {/* Dynamic Content Sections */}
+          {loading ? (
+             <div className="flex-1 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+             </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto p-3 space-y-0.5 bg-white">
+                {filteredCategories.map(category => (
+                    <CategorySection
+                      key={category.id}
+                      category={category}
+                      expanded={expandedSections[category.id] || false}
+                      onToggle={toggleSection}
+                      enabledLayers={enabledLayers}
+                      loadingLayers={loadingLayers}
+                      onLayerToggle={onLayerToggle}
+                      onExport={handleExportClick}
+                      searchQuery={searchQuery}
+                    />
+                ))}
+            </div>
+          )}
         </div>
       </div>
-    </div>
     </>
   );
-}
+});
+
+LayersPanel.displayName = 'LayersPanel';
 
 export default LayersPanel;

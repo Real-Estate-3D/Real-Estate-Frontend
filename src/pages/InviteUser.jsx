@@ -1,3 +1,5 @@
+// File: src/pages/InviteUser.jsx
+
 import React, { useState } from 'react';
 import { Mail, User, Shield, ArrowLeft, Send, Plus, X } from 'lucide-react';
 

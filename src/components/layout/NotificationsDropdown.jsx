@@ -1,3 +1,5 @@
+// File: src/components/layout/NotificationsDropdown.jsx
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, X, Check, Clock, AlertCircle } from 'lucide-react';
 
