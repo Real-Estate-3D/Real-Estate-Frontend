@@ -2,8 +2,10 @@
 // Custom hook for parcel search with debouncing and caching
 
 import { useState, useRef, useCallback } from 'react';
+import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
 
-const GEOSERVER_WFS_URL = 'http://16.52.55.27:8080/geoserver/wfs';
+const GEOSERVER_WFS_URL = GEOSERVER_CONFIG.wfsUrl;
+const WORKSPACE = GEOSERVER_CONFIG.workspace;
 const MAX_RESULTS = 5;
 
 export const useParcelSearch = () => {
@@ -43,7 +45,7 @@ export const useParcelSearch = () => {
         service: 'WFS',
         version: '2.0.0',
         request: 'GetFeature',
-        typeNames: 'municipal_planning:parcel_search',
+        typeNames: `${WORKSPACE}:parcel_search`,
         outputFormat: 'application/json',
         count: MAX_RESULTS.toString(),
         viewparams: `search_term:${encodeURIComponent(searchTerm)}`

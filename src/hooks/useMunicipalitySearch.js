@@ -2,9 +2,10 @@
 // Custom hook for municipality search using WFS with CQL filter
 
 import { useState, useRef, useCallback } from 'react';
+import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
 
-const GEOSERVER_WFS_URL = 'http://16.52.55.27:8080/geoserver/wfs';
-const WORKSPACE = 'municipal_planning';
+const GEOSERVER_WFS_URL = GEOSERVER_CONFIG.wfsUrl;
+const WORKSPACE = GEOSERVER_CONFIG.workspace;
 const LAYER_NAME = 'view_municipalities';
 const MAX_RESULTS = 5;
 

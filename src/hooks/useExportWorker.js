@@ -32,7 +32,7 @@ export const useExportWorker = () => {
               if (exp.status === 'processing' && exp.layerName === layerName) {
                 if (exp.format === 'geojson') {
                   // Only download for actual GeoJSON exports
-                  downloadFile(data, `${layerName}.geojson`, 'application/json');
+                  downloadFile(data, `${toSafeFilenameBase(layerName)}.geojson`, 'application/json');
                   setIsExporting(false);
                   return {
                     ...exp, 
@@ -67,7 +67,7 @@ export const useExportWorker = () => {
                   }
                 : exp
             ));
-            downloadBlob(data, `${layerName}.kml`);
+            downloadBlob(data, `${toSafeFilenameBase(layerName)}.kml`);
             setIsExporting(false);
             break;
 
@@ -83,7 +83,7 @@ export const useExportWorker = () => {
                   }
                 : exp
             ));
-            downloadBlob(data, `${layerName}.zip`);
+            downloadBlob(data, `${toSafeFilenameBase(layerName)}.zip`);
             setIsExporting(false);
             break;
 
@@ -214,4 +214,13 @@ function downloadBlob(blob, filename) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+function toSafeFilenameBase(value) {
+  // Avoid characters that are invalid on Windows/macOS file systems.
+  // In particular, GeoServer typeName often includes a workspace prefix: workspace:layer
+  return String(value || 'export')
+    .replace(/[:\\/\\?%*|"<>]/g, '__')
+    .trim()
+    .slice(0, 180);
 }

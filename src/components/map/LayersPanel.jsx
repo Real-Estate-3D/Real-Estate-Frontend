@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { fetchGeoServerLayers, groupLayersByCategory, filterLayersByMunicipality } from '../../utils/geoServerLayerManager';
 import ExportFormatPopup from './ExportFormatPopup';
+import { GEOSERVER_CONFIG } from '../../utils/runtimeConfig';
 
 // Memoized Toggle component
 const Toggle = memo(({ checked, onChange, isLoading }) => (
@@ -170,9 +171,11 @@ const LayersPanel = memo(({ onClose, onLayerToggle, onMapScopeToggle, enabledLay
   const handleExport = useCallback((layer, format) => {
     const event = new CustomEvent('exportLayer', {
       detail: {
-        layerName: layer.name,
+        // GeoServer WFS typically expects workspace-qualified typeName.
+        // We keep the layer object name unqualified elsewhere; only qualify for export.
+        layerName: `${GEOSERVER_CONFIG.workspace}:${layer.name}`,
         format: format,
-        url: 'http://16.52.55.27:8080/geoserver/municipal_planning/wfs' // Base URL from config
+        url: GEOSERVER_CONFIG.wfsUrl,
       }
     });
     window.dispatchEvent(event);

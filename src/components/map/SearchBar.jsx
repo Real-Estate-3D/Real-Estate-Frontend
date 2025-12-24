@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Search, X, MapPin, Building2, Loader2, Landmark } from 'lucide-react';
 import { useParcelSearch } from '../../hooks/useParcelSearch';
 import { useMunicipalitySearch } from '../../hooks/useMunicipalitySearch';
+import { NOMINATIM_SEARCH_URL } from '../../utils/runtimeConfig';
 
 // Memoized search result item to prevent re-renders
 const PlaceResultItem = memo(({ suggestion, onSelect }) => (
@@ -151,7 +152,7 @@ const SearchBar = memo(({ onLocationSelect, onParcelSelect, onMunicipalitySelect
     setIsLoadingPlaces(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?` +
+        `${NOMINATIM_SEARCH_URL}?` +
         `q=${encodeURIComponent(searchQuery)}` +
         `&format=json` +
         `&limit=5` +

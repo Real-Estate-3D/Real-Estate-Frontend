@@ -15,17 +15,17 @@ import {
   fetchGeoServerLayers,
   filterLayersByMunicipality,
 } from "../../utils/geoServerLayerManager";
+import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
 
-Cesium.Ion.defaultAccessToken =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxZTJmOWEwZS04OTA1LTQ4N2YtYTkyNy0zMjBjNDA5NmNjYzYiLCJpZCI6MzQxMTIzLCJpYXQiOjE3NjY0MDUxMjN9.hfR80C9d-1y5SCkmITwGCCSFN8nsJ6D4fhJKn8A2yk4";
-
-const GEOSERVER_CONFIG = {
-  baseUrl: "http://16.52.55.27:8080/geoserver",
-  workspace: "municipal_planning",
-  wmsUrl: "http://16.52.55.27:8080/geoserver/municipal_planning/wms",
-  wfsUrl: "http://16.52.55.27:8080/geoserver/municipal_planning/wfs",
-  srs: "EPSG:4326",
-};
+if (CESIUM_ION_TOKEN) {
+  Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+} else {
+  // Cesium can still render with some assets without Ion, but many features require a token.
+  // Keep this as a warning rather than throwing.
+  console.warn(
+    "Missing VITE_CESIUM_ION_TOKEN. Set it in your .env file to enable Cesium Ion assets."
+  );
+}
 
 // CQL Filters for tier-based municipality visibility
 const CQL_FILTERS = {

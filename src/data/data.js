@@ -14,6 +14,8 @@
  * gis.initialize();
  */
 
+import { GEOSERVER_CONFIG } from "../utils/runtimeConfig";
+
 class MunicipalGIS {
     constructor(containerId) {
         this.containerId = containerId;
@@ -21,8 +23,8 @@ class MunicipalGIS {
         this.currentMunicipality = null; // Track currently selected municipality
         
         // CONFIGURATION
-        this.geoserverUrl = "http://16.52.55.27:8080/geoserver/municipal_planning/wms";
-        this.workspace = "municipal_planning";
+        this.geoserverUrl = GEOSERVER_CONFIG.wmsUrl;
+        this.workspace = GEOSERVER_CONFIG.workspace;
         
         // MUNICIPALITY LOCATIONS & EXTENTS
         // Used for fly-to animations and context detection

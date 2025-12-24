@@ -1,10 +1,7 @@
 // File: src/utils/geoServerLayerManager.js
 
-const GEOSERVER_CONFIG = {
-  baseUrl: "http://16.52.55.27:8080/geoserver",
-  workspace: "municipal_planning",
-  wmsUrl: "http://16.52.55.27:8080/geoserver/municipal_planning/wms",
-};
+// Centralized runtime config (env-backed)
+export { GEOSERVER_CONFIG } from "./runtimeConfig";
 
 // Fetch layers (instant - returns hardcoded list)
 export async function fetchGeoServerLayers() {
