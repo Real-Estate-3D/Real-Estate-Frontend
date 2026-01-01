@@ -22,6 +22,9 @@ const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
 const GEOSERVER_CONFIG = {
   baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
   workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+  wmsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wms`,
+  wfsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wfs`,
+  srs: "EPSG:4326",
 };
 
 console.log("GEOSERVER_CONFIG:", GEOSERVER_CONFIG);
