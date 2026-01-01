@@ -1,7 +1,13 @@
 // File: src/utils/geoServerLayerManager.js
 
 // Centralized runtime config (env-backed)
-export { GEOSERVER_CONFIG } from "./runtimeConfig";
+// export { GEOSERVER_CONFIG } from "./runtimeConfig";
+const GEOSERVER_CONFIG = {
+  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
+  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+};
+
+export { GEOSERVER_CONFIG };
 
 // Fetch layers (instant - returns hardcoded list)
 export async function fetchGeoServerLayers() {
