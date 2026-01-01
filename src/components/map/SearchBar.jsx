@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Search, X, MapPin, Building2, Loader2, Landmark } from 'lucide-react';
 import { useParcelSearch } from '../../hooks/useParcelSearch';
 import { useMunicipalitySearch } from '../../hooks/useMunicipalitySearch';
-import { NOMINATIM_SEARCH_URL } from '../../utils/runtimeConfig';
+// import { NOMINATIM_SEARCH_URL } from '../../utils/runtimeConfig';
+
+const NOMINATIM_SEARCH_URL = import.meta.env.VITE_NOMINATIM_SEARCH_URL;
 
 // Memoized search result item to prevent re-renders
 const PlaceResultItem = memo(({ suggestion, onSelect }) => (
