@@ -24,6 +24,8 @@ const GEOSERVER_CONFIG = {
   workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
 };
 
+console.log("GEOSERVER_CONFIG:", GEOSERVER_CONFIG);
+
 if (CESIUM_ION_TOKEN) {
   Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
 } else {
