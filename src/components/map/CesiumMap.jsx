@@ -15,7 +15,14 @@ import {
   fetchGeoServerLayers,
   filterLayersByMunicipality,
 } from "../../utils/geoServerLayerManager";
-import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
+// import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
+
+const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
+
+const GEOSERVER_CONFIG = {
+  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
+  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+};
 
 if (CESIUM_ION_TOKEN) {
   Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
