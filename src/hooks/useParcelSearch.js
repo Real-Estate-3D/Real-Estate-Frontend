@@ -7,6 +7,9 @@ import { useState, useRef, useCallback } from 'react';
 const GEOSERVER_CONFIG = {
   baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
   workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+  wmsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wms`,
+  wfsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wfs`,
+  srs: "EPSG:4326",
 };
 
 const GEOSERVER_WFS_URL = GEOSERVER_CONFIG.wfsUrl;
