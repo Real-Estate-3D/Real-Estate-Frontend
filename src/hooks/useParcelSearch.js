@@ -2,7 +2,12 @@
 // Custom hook for parcel search with debouncing and caching
 
 import { useState, useRef, useCallback } from 'react';
-import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
+// import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
+
+const GEOSERVER_CONFIG = {
+  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
+  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+};
 
 const GEOSERVER_WFS_URL = GEOSERVER_CONFIG.wfsUrl;
 const WORKSPACE = GEOSERVER_CONFIG.workspace;
