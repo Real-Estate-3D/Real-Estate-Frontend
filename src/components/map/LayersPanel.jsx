@@ -12,7 +12,14 @@ import {
 } from 'lucide-react';
 import { fetchGeoServerLayers, groupLayersByCategory, filterLayersByMunicipality } from '../../utils/geoServerLayerManager';
 import ExportFormatPopup from './ExportFormatPopup';
-import { GEOSERVER_CONFIG } from '../../utils/runtimeConfig';
+// import { GEOSERVER_CONFIG } from '../../utils/runtimeConfig';
+
+const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
+
+const GEOSERVER_CONFIG = {
+  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
+  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
+};
 
 // Memoized Toggle component
 const Toggle = memo(({ checked, onChange, isLoading }) => (
