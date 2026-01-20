@@ -84,7 +84,7 @@ const ScheduleSearchSelect = ({ label, selectedSchedules = [], onChange, error }
   }, [selectedSchedules, onChange]);
 
   return (
-    <div className="flex flex-col gap-1.5 relative" ref={dropdownRef}>
+    <div className="flex flex-col gap-1.5" ref={dropdownRef}>
       <label className="text-sm font-medium text-gray-700">{label}</label>
       
       {/* Selected schedules display */}
@@ -122,7 +122,7 @@ const ScheduleSearchSelect = ({ label, selectedSchedules = [], onChange, error }
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full max-h-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
           {/* Search input */}
           <div className="p-2 border-b border-gray-200">
             <div className="relative">
