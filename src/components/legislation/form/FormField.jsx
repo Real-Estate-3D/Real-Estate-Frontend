@@ -27,7 +27,7 @@ export const TextInput = ({
         onChange={(e) => onChange(name, e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full px-3 py-2 text-sm border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+        className={`w-full px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed ${
           error ? 'border-red-500' : 'border-gray-300'
         }`}
       />
@@ -60,7 +60,7 @@ export const SelectInput = ({
           value={value}
           onChange={(e) => onChange(name, e.target.value)}
           disabled={disabled}
-          className={`w-full appearance-none px-3 py-2 pr-10 text-sm border rounded-lg bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer ${
+          className={`w-full appearance-none px-3 py-2.5 pr-10 text-sm border rounded-lg bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer ${
             error ? 'border-red-500' : 'border-gray-300'
           } ${!value ? 'text-gray-400' : 'text-gray-900'}`}
         >
@@ -107,7 +107,7 @@ export const DateInput = ({
           disabled={disabled}
           min={min}
           max={max}
-          className={`w-full px-3 py-2 pr-10 text-sm border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+          className={`w-full px-3 py-2.5 pr-10 text-sm bg-white border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed ${
             error ? 'border-red-500' : 'border-gray-300'
           } ${!value ? 'text-gray-400' : 'text-gray-900'}`}
         />
@@ -143,7 +143,7 @@ export const TextArea = ({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
-        className={`w-full px-3 py-2 text-sm border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none ${
+        className={`w-full px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none ${
           error ? 'border-red-500' : 'border-gray-300'
         }`}
       />
@@ -168,7 +168,7 @@ export const Checkbox = ({
         checked={checked}
         onChange={(e) => onChange(name, e.target.checked)}
         disabled={disabled}
-        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:cursor-not-allowed"
+        className="w-4 h-4 accent-black border-gray-300 rounded focus:ring-gray-900 disabled:cursor-not-allowed"
       />
       <span className="text-sm text-gray-700">{label}</span>
     </label>

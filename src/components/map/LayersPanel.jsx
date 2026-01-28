@@ -1,18 +1,18 @@
 // File: src/components/map/LayersPanel.jsx
 
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
-import { 
-  Layers, 
-  Search, 
-  Plus, 
-  ChevronDown, 
-  ChevronRight,
+import {
+  Layers,
+  Search,
+  Plus,
+  ChevronDown,
   Loader2,
   Download
 } from 'lucide-react';
 import { fetchGeoServerLayers, groupLayersByCategory, filterLayersByMunicipality } from '../../utils/geoServerLayerManager';
 import ExportFormatPopup from './ExportFormatPopup';
 import { GEOSERVER_CONFIG } from '../../utils/runtimeConfig';
+import { GradientTitleBar } from '../common';
 
 // Memoized Toggle component
 const Toggle = memo(({ checked, onChange, isLoading }) => (
@@ -25,7 +25,7 @@ const Toggle = memo(({ checked, onChange, isLoading }) => (
     >
         {isLoading ? (
             <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-3 h-3 text-gray-600 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 text-gray-600 animate-spin" />
             </div>
         ) : (
             <div 
@@ -42,21 +42,21 @@ Toggle.displayName = 'Toggle';
 // Memoized Layer Item
 const LayerItem = memo(({ layer, isEnabled, isLoading, onToggle, onExport }) => (
   <div className="flex items-center justify-between py-1.5 pl-0.5 pr-0.5 hover:bg-gray-50 rounded-lg text-xs transition-all duration-150">
-    <div className="flex items-center gap-2.5">
-        <Toggle 
-            checked={isEnabled}
-            isLoading={isLoading}
-            onChange={(c) => onToggle(layer.name, c, { type: 'wms', layerName: layer.name, opacity: layer.opacity })}
-        />
-        <span className={`text-gray-600 ${isLoading ? 'opacity-50' : ''}`}>{layer.title}</span>
+    <span className={`text-gray-700 ${isLoading ? 'opacity-50' : ''}`}>{layer.title}</span>
+    <div className="flex items-center gap-2">
+      <button 
+        onClick={() => onExport(layer)}
+        className="p-1 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-all duration-200"
+        title="Export Layer"
+      >
+          <Download className="w-3 h-3" />
+      </button>
+      <Toggle 
+          checked={isEnabled}
+          isLoading={isLoading}
+          onChange={(c) => onToggle(layer.name, c, { type: 'wms', layerName: layer.name, opacity: layer.opacity })}
+      />
     </div>
-    <button 
-      onClick={() => onExport(layer)}
-      className="p-1 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-all duration-200"
-      title="Export Layer"
-    >
-        <Download className="w-3 h-3" />
-    </button>
   </div>
 ));
 
@@ -76,14 +76,19 @@ const CategorySection = memo(({ category, expanded, onToggle, enabledLayers, loa
 
   return (
     <div className="mb-2">
-      <button 
+      <button
         onClick={() => onToggle(category.id)}
         className="flex items-center justify-between w-full py-1.5 group"
       >
-        <span className="font-semibold text-xs text-gray-800 group-hover:text-blue-600 transition-all duration-200">
-          {category.title}
-        </span>
-        {expanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-xs text-gray-800 group-hover:text-blue-600 transition-all duration-200">
+            {category.title}
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-semibold">
+            {filteredLayers.length}
+          </span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`} />
       </button>
       
       {expanded && (
@@ -203,22 +208,22 @@ const LayersPanel = memo(({ onClose, onLayerToggle, onMapScopeToggle, enabledLay
       )}
 
       {/* Main Container */}
-      <div className="w-full flex py-2 flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="w-full flex py-2 pr-2 flex-col flex-1 min-h-0 overflow-hidden">
         
         {/* Main Layers Card */}
         <div className="bg-white shadow-lg border rounded-xl border-gray-100 overflow-hidden flex-1 flex flex-col min-h-0">
-          {/* Header */}
-          <div className="px-4 py-2.5 border-b border-gray-100 bg-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-500" />
-                  <span className="font-semibold text-sm text-gray-900">
-                    {currentMunicipality ? `${currentMunicipality} Layers` : 'Layers'}
-                  </span>
-              </div>
-              <button className="p-1 hover:bg-gray-100 rounded-lg transition-all duration-200">
-                  <Plus className="w-4 h-4 text-gray-400" />
+          {/* Header with Gradient */}
+          <GradientTitleBar
+            title={currentMunicipality ? `${currentMunicipality} Layers` : 'Layers'}
+            icon={Layers}
+            variant="blue"
+            className="rounded-t-xl"
+            actions={
+              <button className="p-1 hover:bg-white/20 rounded-lg transition-all duration-200">
+                <Plus className="w-4 h-4 text-white/80" />
               </button>
-          </div>
+            }
+          />
 
           {/* Search & Tabs */}
           <div className="p-3 border-b border-gray-50 space-y-2.5 bg-white">
@@ -229,7 +234,7 @@ const LayersPanel = memo(({ onClose, onLayerToggle, onMapScopeToggle, enabledLay
                       placeholder="Search layers..." 
                       value={searchQuery}
                       onChange={handleSearchChange}
-                      className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 placeholder-gray-400"
+                        className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all duration-200 placeholder-gray-400"
                   />
               </div>
               <div className="flex items-center gap-4 text-xs">

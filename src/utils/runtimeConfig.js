@@ -16,7 +16,7 @@ function buildUrl(base, ...parts) {
   return [cleanBase, ...cleanParts].filter(Boolean).join("/");
 }
 
-const DEFAULT_GEOSERVER_BASE_URL = "http://16.52.55.27:8080/geoserver";
+const DEFAULT_GEOSERVER_BASE_URL = "https://16.52.55.27.nip.io/geoserver";
 const DEFAULT_GEOSERVER_WORKSPACE = "municipal_planning";
 
 const geoserverBaseUrl = stripTrailingSlash(
@@ -32,10 +32,10 @@ const geoserverWmsUrl = stripTrailingSlash(
     buildUrl(geoserverBaseUrl, geoserverWorkspace, "wms")
 );
 
-// Note: GeoServer commonly exposes WFS at `/geoserver/wfs` (not workspace-scoped).
-// We still allow an override.
+// WFS endpoint - workspace-scoped for this GeoServer setup
 const geoserverWfsUrl = stripTrailingSlash(
-  import.meta.env.VITE_GEOSERVER_WFS_URL || buildUrl(geoserverBaseUrl, "wfs")
+  import.meta.env.VITE_GEOSERVER_WFS_URL || 
+    buildUrl(geoserverBaseUrl, geoserverWorkspace, "wfs")
 );
 
 export const GEOSERVER_CONFIG = Object.freeze({

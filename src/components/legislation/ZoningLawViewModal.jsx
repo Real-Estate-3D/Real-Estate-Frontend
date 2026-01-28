@@ -1,7 +1,7 @@
 // File: src/components/legislation/ZoningLawViewModal.jsx
 
 import React, { useState, useCallback } from 'react';
-import { X, Map, Pencil, Trash2, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { X, Pencil, Trash2, ChevronDown, Eye } from 'lucide-react';
 
 // Mock zones data for Parameter View
 const mockZones = [
@@ -68,10 +68,10 @@ const ZoningLawViewModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 animate-fade-in" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900 truncate pr-4">{title}</h2>
@@ -189,13 +189,9 @@ const ZoneSection = ({ zone, isExpanded, onToggle, onPreviewOnMap }) => {
         onClick={onToggle}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button className="text-gray-400 hover:text-gray-600 shrink-0">
-            {isExpanded ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </button>
+          <span className="text-gray-400 shrink-0">
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
+          </span>
           <h4 className="text-sm font-semibold text-gray-900 truncate">{zone.name}</h4>
           <span className="text-xs text-gray-500 shrink-0">{zone.code}</span>
         </div>

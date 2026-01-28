@@ -56,31 +56,30 @@ class MunicipalGIS {
         };
         
         // LAYER REGISTRY
-        // CORRECTED NAMES BASED ON GEOSERVER JSON RESPONSE (TRIPLE UNDERSCORES)
+        // Updated layer names to match new GeoServer PostGIS schema
         // Initial State: Only administrative boundaries visible
         this.layers = [
-            // --- BASE & CONTEXT (Hidden by default) ---
-            { layer: "view_land_use___toronto", title: "Land Use (Toronto)", visible: false, opacity: 0.6, category: 'detail' },
-            
             // --- PLANNING & ZONING (Hidden by default) ---
-            { layer: "view_zoning___midland",   title: "Zoning (Midland)",   visible: false, opacity: 0.5, category: 'detail' },
-            { layer: "view_zoning___adjala",    title: "Zoning (Adjala)",    visible: false, opacity: 0.5, category: 'detail' },
-            { layer: "view_zoning___toronto",   title: "Zoning (Toronto)",   visible: false, opacity: 0.5, category: 'detail' },
+            { layer: "landuse_land_use",         title: "Land Use",             visible: false, opacity: 0.6, category: 'planning' },
+            { layer: "landuse_zoning",           title: "Zoning",               visible: false, opacity: 0.5, category: 'planning' },
             
             // --- INFRASTRUCTURE & AMENITIES (Hidden by default) ---
-            { layer: "view_buildings___toronto", title: "Buildings (Toronto)", visible: false, opacity: 0.8, category: 'detail' },
-            { layer: "view_parks___midland",     title: "Parks (Midland)",     visible: false, opacity: 0.7, category: 'detail' },
-            { layer: "view_parks___adjala",      title: "Parks (Adjala)",      visible: false, opacity: 0.7, category: 'detail' },
-            { layer: "view_parking___toronto",   title: "Parking (Toronto)",   visible: false, opacity: 0.7, category: 'detail' },
-            { layer: "view_parking___midland",   title: "Parking (Midland)",   visible: false, opacity: 0.7, category: 'detail' },
-            { layer: "view_parking___adjala",    title: "Parking (Adjala)",    visible: false, opacity: 0.7, category: 'detail' },
+            { layer: "infrastructure_buildings",     title: "Buildings",          visible: false, opacity: 0.8, category: 'infrastructure' },
+            { layer: "landuse_parks",                title: "Parks",              visible: false, opacity: 0.7, category: 'infrastructure' },
+            { layer: "infrastructure_parking",       title: "Parking",            visible: false, opacity: 0.7, category: 'infrastructure' },
+            { layer: "infrastructure_roads",         title: "Roads",              visible: false, opacity: 0.7, category: 'infrastructure' },
+            { layer: "infrastructure_trails",        title: "Trails",             visible: false, opacity: 0.6, category: 'infrastructure' },
+            { layer: "infrastructure_address_points", title: "Address Points",    visible: false, opacity: 0.8, category: 'infrastructure' },
 
             // --- PARCELS (Hidden by default, shown on drill-down) ---
-            { layer: "view_parcels",          title: "Property Parcels",   visible: false, opacity: 1.0, category: 'parcels' },
+            { layer: "landuse_parcels",              title: "Property Parcels",   visible: false, opacity: 1.0, category: 'parcels' },
 
             // --- ADMIN BOUNDARIES (Visible by default - entry point) ---
-            { layer: "view_wards",            title: "Wards",              visible: false, opacity: 1.0, category: 'admin' },
-            { layer: "view_municipalities",   title: "Municipalities",     visible: true,  opacity: 1.0, category: 'admin' }
+            { layer: "boundaries_wards",             title: "Electoral Wards",    visible: false, opacity: 0.7, category: 'admin' },
+            { layer: "boundaries_all_municipalities", title: "All Municipalities", visible: true,  opacity: 1.0, category: 'admin' },
+            { layer: "boundaries_upper_tier",        title: "Upper Tier (Regions)", visible: false, opacity: 0.8, category: 'admin' },
+            { layer: "boundaries_lower_tier",        title: "Lower Tier (Cities)", visible: false, opacity: 0.8, category: 'admin' },
+            { layer: "boundaries_single_tier",       title: "Single Tier",        visible: false, opacity: 0.8, category: 'admin' }
         ];
     }
 
@@ -176,7 +175,7 @@ class MunicipalGIS {
                     await this.handleMunicipalityClick(latitude, longitude);
                 } else {
                     // ZOOMED IN: Query parcels/detailed features
-                    await this.queryFeatureInfo(latitude, longitude, "view_parcels");
+                    await this.queryFeatureInfo(latitude, longitude, "landuse_parcels");
                 }
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -207,8 +206,8 @@ class MunicipalGIS {
             service: 'WMS',
             version: '1.1.1',
             request: 'GetFeatureInfo',
-            layers: `${this.workspace}:view_municipalities`,
-            query_layers: `${this.workspace}:view_municipalities`,
+            layers: `${this.workspace}:boundaries_all_municipalities`,
+            query_layers: `${this.workspace}:boundaries_all_municipalities`,
             info_format: 'application/json',
             bbox: bbox,
             width: 101,
@@ -300,7 +299,7 @@ class MunicipalGIS {
             if (cfg.category === 'admin') {
                 // Keep municipalities visible but reduce opacity when zoomed in
                 cfg._cesiumLayer.show = true;
-                cfg._cesiumLayer.alpha = cfg.layer === 'view_municipalities' ? 0.3 : cfg.opacity;
+                cfg._cesiumLayer.alpha = cfg.layer === 'boundaries_all_municipalities' ? 0.3 : cfg.opacity;
             } else if (cfg.category === 'parcels') {
                 // Always show parcels when drilled down
                 cfg._cesiumLayer.show = true;
@@ -338,7 +337,7 @@ class MunicipalGIS {
         this.layers.forEach(cfg => {
             if (!cfg._cesiumLayer) return;
             
-            if (cfg.layer === 'view_municipalities') {
+            if (cfg.layer === 'boundaries_all_municipalities') {
                 cfg._cesiumLayer.show = true;
                 cfg._cesiumLayer.alpha = cfg.opacity;
             } else {

@@ -47,11 +47,11 @@ const SubdivisionStep = ({ formData, onChange, errors }) => {
             rows={4}
           />
 
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">
               Subdivision Guidelines
             </h4>
-            <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+            <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
               <li>All subdivision plans must comply with local zoning bylaws</li>
               <li>Environmental assessments may be required</li>
               <li>Traffic impact studies should be included</li>

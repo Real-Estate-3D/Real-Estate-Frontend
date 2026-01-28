@@ -42,8 +42,12 @@ const Layout = () => {
   );
 
   return (
-    <div className="flex h-screen bg-[#A0B0C8] text-gray-100 overflow-hidden p-3 gap-3">
-      <div className="shrink-0 overflow-visible h-full">
+    <div className="flex h-screen text-gray-100 overflow-hidden p-4 gap-4"
+    style={{
+      backgroundImage : 'url("./bg.png")'
+    }}
+    >
+      <div className="shrink-0 overflow-visible h-full ">
         <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
       </div>
       
@@ -66,6 +70,7 @@ const Layout = () => {
             onClearAll={clearAllExports}
           />
         )}
+
       </div>
     </div>
   );

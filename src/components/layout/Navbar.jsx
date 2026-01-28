@@ -3,12 +3,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus } from 'lucide-react';
+import { NotificationIcon } from '../../utils/icons';
 
 const Navbar = ({ onExportClick, exportCount = 0 }) => {
   const navigate = useNavigate();
 
   return (
-    <header className="h-14 bg-white rounded-xl flex items-center justify-between px-4 sm:px-5 flex-shrink-0 z-40 shadow-sm">
+    <header className="h-14 bg-white rounded-lg flex items-center justify-between px-2 z-40 shadow-sm">
       {/* Search Bar */}
       <div className="flex-1 max-w-lg">
         <div className="relative">
@@ -16,7 +17,7 @@ const Navbar = ({ onExportClick, exportCount = 0 }) => {
           <input
             type="text"
             placeholder="Search projects, submissions, or zoning..."
-            className="w-full pl-9 pr-4 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all duration-200"
+            className="w-full pl-9 pr-4 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all duration-200"
           />
         </div>
       </div>
@@ -24,7 +25,7 @@ const Navbar = ({ onExportClick, exportCount = 0 }) => {
       <div className="flex items-center gap-2 ml-4">
         {/* Add Button */}
         <button className="flex items-center justify-center w-8 h-8 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200">
-          <Plus className="w-4 h-4 text-gray-500" />
+          <NotificationIcon className="w-4 h-4 text-gray-500" />
         </button>
 
         <div className="w-px h-5 bg-gray-200 mx-1"></div>

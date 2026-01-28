@@ -1,12 +1,13 @@
 // File: src/components/map/LayersLegend.jsx
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { Layers, Plus } from 'lucide-react';
+import { GradientTitleBar } from '../common';
 
 // Legend item with colored dot
 const LegendItem = memo(({ color, label }) => (
   <div className="flex items-center gap-2.5 py-1">
-    <div 
+    <div
       className="w-3 h-3 rounded-full shrink-0"
       style={{ backgroundColor: color }}
     />
@@ -16,45 +17,47 @@ const LegendItem = memo(({ color, label }) => (
 
 LegendItem.displayName = 'LegendItem';
 
-const LayersLegend = memo(({ 
+const LayersLegend = memo(({
   selectedMunicipality = null,
   selectedRegion = null,
-  municipalityType = null,  // 'SingleTier' or 'LowerTier'
-  onAddLayer 
+  municipalityType = null,  // 'single_tier' or 'lower_tier'
+  onAddLayer
 }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
   // Determine what legend items to show based on selection state
   const getLegendItems = () => {
-    // When nothing is selected - show UpperTier and SingleTier
+    // When nothing is selected - show upper_tier and single_tier
     if (!selectedMunicipality && !selectedRegion) {
       return [
         { color: '#f87171', label: 'Single-Tier Municipality' },  // Red
         { color: '#60a5fa', label: 'Upper-Tier Municipality' },   // Blue
       ];
     }
-    
-    // When UpperTier (region) is selected - show LowerTier children
+
+    // When upper_tier (region) is selected - show lower_tier children
     if (selectedRegion && !selectedMunicipality) {
       return [
         { color: '#f87171', label: 'Lower-Tier Municipality' },  // Red
       ];
     }
-    
-    // When SingleTier municipality is selected - show wards
-    if (selectedMunicipality && municipalityType === 'SingleTier') {
+
+    // When single_tier municipality is selected - show wards
+    if (selectedMunicipality && municipalityType === 'single_tier') {
       return [
         { color: '#f59e0b', label: 'Wards' },                     // Amber/Orange
         { color: 'silver', label: 'Property Parcels' },          // Purple
       ];
     }
-    
-    // When LowerTier municipality is selected - show parcels
+
+    // When lower_tier municipality is selected - show parcels
     if (selectedMunicipality) {
       return [
         { color: 'silver', label: 'Property Parcels' },          // Purple
-      
+
       ];
     }
-    
+
     return [];
   };
 
@@ -65,32 +68,41 @@ const LayersLegend = memo(({
 
   return (
     <div className="bg-white/95 backdrop-blur-md shadow-lg border border-gray-100 rounded-xl overflow-hidden min-w-[220px]">
-      {/* Header */}
-      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-gray-600" />
-          <span className="font-semibold text-sm text-gray-900">Layers Legend</span>
-        </div>
-        {onAddLayer && (
-          <button 
-            onClick={onAddLayer}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-all duration-200"
-          >
-            <Plus className="w-4 h-4 text-gray-400" />
-          </button>
-        )}
-      </div>
+      {/* Header with Gradient */}
+      <GradientTitleBar
+        title="Layers Legend"
+        icon={Layers}
+        variant="blue"
+        collapsible
+        isExpanded={isExpanded}
+        onToggle={() => setIsExpanded(!isExpanded)}
+        actions={
+          onAddLayer && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddLayer();
+              }}
+              className="p-1 hover:bg-white/20 rounded-lg transition-all duration-200"
+            >
+              <Plus className="w-4 h-4 text-white/80" />
+            </button>
+          )
+        }
+      />
 
       {/* Legend Items */}
-      <div className="px-4 py-3 space-y-1">
-        {legendItems.map((item, index) => (
-          <LegendItem 
-            key={index} 
-            color={item.color} 
-            label={item.label} 
-          />
-        ))}
-      </div>
+      {isExpanded && (
+        <div className="px-4 py-3 space-y-1">
+          {legendItems.map((item, index) => (
+            <LegendItem
+              key={index}
+              color={item.color}
+              label={item.label}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 });

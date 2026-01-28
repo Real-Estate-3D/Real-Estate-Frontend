@@ -1,224 +1,139 @@
 // File: src/components/legislation/form/steps/ReviewPublishStep.jsx
 
 import React from 'react';
-import { Check, AlertCircle, FileText, Calendar, MapPin, Tag, Settings, GitBranch } from 'lucide-react';
-
-const legislationTypeLabels = {
-  zoning_bylaw: 'Zoning By-law',
-  official_plan: 'Official Plan',
-  site_specific_zoning: 'Site-Specific Zoning',
-  subdivision_control: 'Subdivision Control',
-};
-
-const jurisdictionLabels = {
-  toronto: 'City of Toronto',
-  mississauga: 'City of Mississauga',
-  brampton: 'City of Brampton',
-  markham: 'City of Markham',
-  vaughan: 'City of Vaughan',
-  oakville: 'Town of Oakville',
-  richmond_hill: 'City of Richmond Hill',
-  burlington: 'City of Burlington',
-};
+import { Info, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 
 const ReviewPublishStep = ({ formData, onChange, errors }) => {
-  const sections = [
+  // Get workflows from form data - default to sample if empty
+  const workflows = formData.requiredWorkflows?.length > 0 
+    ? formData.requiredWorkflows 
+    : [
+        { id: 'submit_application', name: 'Submit Application' },
+        { id: 'environmental_impact_review', name: 'Environmental Impact Review' },
+        { id: 'review_by_planner', name: 'Review by Planner' },
+        { id: 'approve_by_council', name: 'Approve by Council' },
+      ];
+
+  // Sample diff data
+  const diffData = [
     {
-      title: 'Context & Scope',
-      icon: FileText,
-      items: [
-        { label: 'Title', value: formData.title || 'Not specified' },
-        { label: 'Jurisdiction', value: jurisdictionLabels[formData.jurisdiction] || 'Not specified' },
-        { label: 'Effective From', value: formData.effectiveFrom || 'Not specified' },
-        { label: 'Effective To', value: formData.effectiveTo || 'Not specified' },
-        { label: 'Legislation Type', value: legislationTypeLabels[formData.legislationType] || 'Not specified' },
-        { label: 'Base Template', value: formData.baseTemplate || 'None' },
-      ],
+      id: 1,
+      schedule: 'Downtown Mixed Use Zone',
+      polygon: 'Zone abc',
+      change: 'Min Lot Front Setback',
+      currentParameter: '1.0 m',
+      newParameter: '4.0 m',
     },
     {
-      title: 'GIS Schedules',
-      icon: MapPin,
-      items: [
-        { 
-          label: 'Schedules Added', 
-          value: formData.gisSchedules?.length 
-            ? `${formData.gisSchedules.length} schedule(s)` 
-            : 'No schedules added' 
-        },
-        ...(formData.gisSchedules?.length ? formData.gisSchedules.map(schedule => ({
-          label: schedule.name,
-          value: schedule.selectedLayers?.length 
-            ? `${schedule.selectedLayers.length} layer(s)`
-            : 'No layers'
-        })) : []),
-        { 
-          label: 'Map Layers Selected', 
-          value: formData.selectedLayers?.length 
-            ? `${formData.selectedLayers.length} layer(s)` 
-            : 'No map layers selected' 
-        },
-      ],
-    },
-    {
-      title: 'Subdivision',
-      icon: Tag,
-      items: [
-        { label: 'Enabled', value: formData.subdivisionEnabled ? 'Yes' : 'No' },
-        ...(formData.subdivisionEnabled ? [
-          { label: 'Type', value: formData.subdivisionType || 'Not specified' },
-        ] : []),
-      ],
-    },
-    {
-      title: 'Parameters',
-      icon: Settings,
-      items: [
-        { 
-          label: 'Custom Parameters', 
-          value: formData.parameters?.length 
-            ? `${formData.parameters.length} parameter(s)` 
-            : 'No parameters defined' 
-        },
-      ],
-    },
-    {
-      title: 'Required Workflows',
-      icon: GitBranch,
-      items: [
-        { 
-          label: 'Workflows Selected', 
-          value: formData.requiredWorkflows?.length 
-            ? `${formData.requiredWorkflows.length} workflow(s)` 
-            : 'No workflows selected' 
-        },
-      ],
-    },
-    {
-      title: 'Missing Simulation',
-      icon: AlertCircle,
-      items: [
-        { label: 'Enabled', value: formData.simulationEnabled ? 'Yes' : 'No' },
-        ...(formData.simulationEnabled ? [
-          { label: 'Mode', value: formData.simulationConfig?.mode || 'Not specified' },
-          { label: 'Policy', value: formData.simulationConfig?.policy || 'Not specified' },
-        ] : []),
-      ],
+      id: 2,
+      schedule: 'Downtown Mixed Use Zone',
+      polygon: 'Zone abc',
+      change: 'Max Building Height',
+      currentParameter: '20.0 m',
+      newParameter: '32.0 m',
     },
   ];
 
-  // Calculate completion status
-  const requiredFields = ['title', 'jurisdiction', 'effectiveFrom', 'legislationType'];
-  const completedRequired = requiredFields.filter(field => formData[field]).length;
-  const isComplete = completedRequired === requiredFields.length;
-
   return (
-    <div className="flex flex-col gap-5">
-      {/* Completion Status */}
-      <div
-        className={`p-4 rounded-lg border ${
-          isComplete
-            ? 'bg-green-50 border-green-200'
-            : 'bg-amber-50 border-amber-200'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          {isComplete ? (
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <Check className="w-5 h-5 text-green-600" />
-            </div>
-          ) : (
-            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
-            </div>
-          )}
-          <div>
-            <h3
-              className={`text-sm font-medium ${
-                isComplete ? 'text-green-800' : 'text-amber-800'
-              }`}
-            >
-              {isComplete ? 'Ready to Publish' : 'Review Required'}
-            </h3>
-            <p
-              className={`text-xs mt-0.5 ${
-                isComplete ? 'text-green-600' : 'text-amber-600'
-              }`}
-            >
-              {isComplete
-                ? 'All required fields have been completed'
-                : `${completedRequired} of ${requiredFields.length} required fields completed`}
-            </p>
+    <div className="flex flex-col gap-6">
+      {/* Info Banner */}
+      <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <Info className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+        <p className="text-sm text-gray-600">
+          Check all details below before creating the Legislation. You can edit any section before submission.
+        </p>
+      </div>
+
+      {/* Diff View Section */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">Diff View</h3>
+          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </button>
+        </div>
+        
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Schedule
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Polygon
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Change
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Current Parameter
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    New Parameter
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {diffData.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                      {row.schedule}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {row.polygon}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {row.change}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {row.currentParameter}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {row.newParameter}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      {/* Review Sections */}
-      <div className="flex flex-col gap-4">
-        {sections.map((section) => {
-          const Icon = section.icon;
-          return (
+      {/* Required Workflows Section */}
+      <div className="flex flex-col gap-3">
+        <h3 className="text-base font-semibold text-gray-900">Required Workflows</h3>
+        
+        <div className="flex flex-col border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-200">
+          {workflows.map((workflow) => (
             <div
-              key={section.title}
-              className="p-4 border border-gray-200 rounded-lg"
+              key={workflow.id}
+              className="px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
             >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon className="w-4 h-4 text-gray-500" />
-                <h4 className="text-sm font-medium text-gray-900">
-                  {section.title}
-                </h4>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {section.items.map((item, idx) => (
-                  <div key={idx} className="flex flex-col">
-                    <span className="text-xs text-gray-500">{item.label}</span>
-                    <span className="text-sm text-gray-900">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+              <span className="text-sm text-gray-900">{workflow.name}</span>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* Note Preview */}
-      {formData.note && (
-        <div className="p-4 border border-gray-200 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Note</h4>
-          <p className="text-sm text-gray-600">{formData.note}</p>
-        </div>
-      )}
-
-      {/* Publish Options */}
-      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h4 className="text-sm font-medium text-gray-900 mb-3">Publish Options</h4>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">
-              Publish immediately after creation
-            </span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">
-              Notify stakeholders via email
-            </span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">
-              Enable public comments
-            </span>
-          </label>
+      {/* Compliance Section */}
+      <div className="flex flex-col gap-3">
+        <h3 className="text-base font-semibold text-gray-900">Compliance</h3>
+        
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-gray-500" />
+          <span className="text-sm text-gray-700">Overlap with existing heritage zone</span>
         </div>
       </div>
     </div>

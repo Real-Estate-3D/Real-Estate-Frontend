@@ -1,29 +1,152 @@
 // File: src/components/legislation/BranchingModal.jsx
-import React, { useState, useCallback } from 'react';
-import { 
-  X, 
-  GitBranch, 
-  Plus, 
-  GitMerge, 
-  Trash2, 
-  ChevronLeft, 
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  X,
+  GitBranch,
+  Plus,
+  GitMerge,
+  Trash2,
+  ChevronLeft,
   ChevronRight,
   MapPin,
   MoreHorizontal,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import CreateBranchModal from './CreateBranchModal';
 import DeleteBranchModal from './DeleteBranchModal';
 import MergeBranchesModal from './MergeBranchesModal';
+import branchService from '../../services/branchService';
 
-// Branch Timeline Component
+// Helper to generate month headers for timeline
+const getMonthHeaders = (startDate, months = 6) => {
+  const headers = [];
+  const date = new Date(startDate);
+  for (let i = 0; i < months; i++) {
+    headers.push({
+      month: date.toLocaleDateString('en-US', { month: 'short' }),
+      year: date.getFullYear(),
+    });
+    date.setMonth(date.getMonth() + 1);
+  }
+  return headers;
+};
+
+// Branch Timeline Gantt Component
+const BranchTimelineGantt = ({ branches, onBranchSelect, selectedBranch, appliedBranches, onToggleApply }) => {
+  const monthHeaders = getMonthHeaders('2024-01-01', 8);
+  const monthWidth = 80; // pixels per month
+
+  // Calculate position and width for branch bars
+  const calculateBarStyle = (branch) => {
+    const startMonth = branch.startMonth || 0;
+    const endMonth = branch.endMonth || (branch.status === 'active' ? 7 : startMonth + 2);
+    return {
+      left: `${startMonth * monthWidth}px`,
+      width: `${(endMonth - startMonth + 1) * monthWidth - 8}px`,
+    };
+  };
+
+  return (
+    <div className="relative overflow-x-auto">
+      {/* Month Headers */}
+      <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0">
+        <div className="w-48 shrink-0 px-3 py-2 text-xs font-medium text-gray-500 border-r border-gray-200">
+          Branch
+        </div>
+        <div className="w-16 shrink-0 px-2 py-2 text-xs font-medium text-gray-500 border-r border-gray-200 text-center">
+          Apply
+        </div>
+        <div className="flex">
+          {monthHeaders.map((header, index) => (
+            <div
+              key={index}
+              className="text-center py-2 text-xs font-medium text-gray-500 border-r border-gray-100"
+              style={{ width: `${monthWidth}px` }}
+            >
+              {header.month}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Branch Rows */}
+      {branches.map((branch) => {
+        const barStyle = calculateBarStyle(branch);
+        const isApplied = appliedBranches?.has(branch.id) || branch.isMain;
+
+        return (
+          <div
+            key={branch.id}
+            className={`flex items-center border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+              selectedBranch?.id === branch.id ? 'bg-blue-50' : ''
+            }`}
+          >
+            {/* Branch Name */}
+            <div
+              className="w-48 shrink-0 px-3 py-3 cursor-pointer"
+              onClick={() => onBranchSelect(branch)}
+            >
+              <div className="flex items-center gap-2">
+                <GitBranch className={`w-4 h-4 ${branch.isMain ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span className="text-sm font-medium text-gray-900 truncate" title={branch.name}>
+                  {branch.name}
+                </span>
+              </div>
+              {branch.isMain && (
+                <span className="inline-block mt-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+                  Main
+                </span>
+              )}
+            </div>
+
+            {/* Apply Checkbox */}
+            <div className="w-16 shrink-0 px-2 py-3 flex items-center justify-center border-r border-gray-200">
+              <input
+                type="checkbox"
+                checked={isApplied}
+                onChange={() => onToggleApply?.(branch.id)}
+                disabled={branch.isMain}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={branch.isMain ? 'Main branch is always applied' : 'Toggle apply'}
+              />
+            </div>
+
+            {/* Timeline Bar */}
+            <div className="relative flex-1 h-12" style={{ minWidth: `${monthHeaders.length * monthWidth}px` }}>
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 h-6 rounded-full flex items-center px-2 cursor-pointer transition-all ${
+                  branch.isMain
+                    ? 'bg-blue-600 text-white'
+                    : branch.status === 'merged'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-gray-400 text-white hover:bg-gray-500'
+                }`}
+                style={barStyle}
+                onClick={() => onBranchSelect(branch)}
+              >
+                <span className="text-xs font-medium truncate">{branch.version || ''}</span>
+                {/* Merge indicator */}
+                {branch.status === 'merged' && (
+                  <GitMerge className="w-3 h-3 ml-auto shrink-0" />
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Legacy Branch Timeline Component (simple node view)
 const BranchTimeline = ({ branches, onBranchSelect, selectedBranch }) => {
   return (
     <div className="relative py-4 overflow-x-auto">
       <div className="flex items-center gap-2 min-w-max px-4">
         {/* Timeline line */}
         <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-gray-200 -translate-y-1/2" />
-        
+
         {branches.map((branch, index) => (
           <div key={branch.id} className="relative flex flex-col items-center">
             {/* Branch node */}
@@ -39,7 +162,7 @@ const BranchTimeline = ({ branches, onBranchSelect, selectedBranch }) => {
             >
               <GitBranch className="w-4 h-4" />
             </button>
-            
+
             {/* Branch label */}
             <div className="mt-2 text-center">
               <p className="text-xs font-medium text-gray-700 whitespace-nowrap">
@@ -56,7 +179,7 @@ const BranchTimeline = ({ branches, onBranchSelect, selectedBranch }) => {
                 </span>
               )}
             </div>
-            
+
             {/* Connecting line to child branches */}
             {branch.children && branch.children.length > 0 && (
               <div className="absolute top-8 left-1/2 w-0.5 h-6 bg-gray-200" />
@@ -188,20 +311,91 @@ const VersionHistoryTable = ({ versions, onViewInMap, currentPage, totalPages, o
   );
 };
 
-const BranchingModal = ({ isOpen, onClose, zoningLawName = 'Zoning By-Law Amendment' }) => {
+// Mock branches data for fallback
+const mockBranches = [
+  {
+    id: '1',
+    name: 'Main Branch',
+    isMain: true,
+    status: 'active',
+    startMonth: 0,
+    endMonth: 7,
+  },
+  {
+    id: '2',
+    name: 'Zoning amendment 2024-01-06',
+    version: 'v1.1',
+    status: 'merged',
+    startMonth: 1,
+    endMonth: 3,
+  },
+  {
+    id: '3',
+    name: 'Zoning amendment 2024-03-15',
+    version: 'v1.2',
+    status: 'active',
+    startMonth: 3,
+    endMonth: 5,
+  },
+  {
+    id: '4',
+    name: 'Height limit revision',
+    version: 'v2.0',
+    status: 'active',
+    startMonth: 5,
+    endMonth: 7,
+  },
+];
+
+const BranchingModal = ({ isOpen, onClose, legislationId, zoningLawName = 'Zoning By-Law Amendment' }) => {
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isCreateBranchOpen, setIsCreateBranchOpen] = useState(false);
   const [isDeleteBranchOpen, setIsDeleteBranchOpen] = useState(false);
   const [isMergeBranchesOpen, setIsMergeBranchesOpen] = useState(false);
   const [branchToDelete, setBranchToDelete] = useState(null);
+  const [appliedBranches, setAppliedBranches] = useState(new Set());
+  const [branches, setBranches] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Mock branches data
-  const branches = [
-    { id: '1', name: 'Zoning amendment 2024-01-17', isMain: true },
-    { id: '2', name: 'Zoning amendment 2024-01-06', version: 'v1' },
-    { id: '3', name: 'Zoning amendment 2023-07-15', version: 'v2' },
-  ];
+  // Fetch branches when modal opens
+  useEffect(() => {
+    if (isOpen && legislationId) {
+      fetchBranches();
+    }
+  }, [isOpen, legislationId]);
+
+  const fetchBranches = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await branchService.getAll(legislationId);
+      if (result.data && result.data.length > 0) {
+        setBranches(result.data);
+        // Initialize applied branches from API data
+        const applied = new Set();
+        result.data.forEach(branch => {
+          if (branch.isMain || branch.isApplied) {
+            applied.add(branch.id);
+          }
+        });
+        setAppliedBranches(applied);
+      } else {
+        // Use mock data if no branches returned
+        setBranches(mockBranches);
+        setAppliedBranches(new Set(['1']));
+      }
+    } catch (err) {
+      console.error('Failed to fetch branches:', err);
+      setError(err.message);
+      // Fallback to mock data on error
+      setBranches(mockBranches);
+      setAppliedBranches(new Set(['1']));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Mock versions data
   const versions = [
@@ -301,18 +495,83 @@ const BranchingModal = ({ isOpen, onClose, zoningLawName = 'Zoning By-Law Amendm
     setCurrentPage(page);
   }, []);
 
-  const handleCreateBranch = useCallback((data) => {
-    console.log('Create branch:', data);
-  }, []);
+  const handleCreateBranch = useCallback(async (data) => {
+    if (!legislationId) {
+      console.log('Create branch (mock):', data);
+      return;
+    }
+    try {
+      await branchService.create(legislationId, data);
+      await fetchBranches(); // Refresh the list
+      setIsCreateBranchOpen(false);
+    } catch (err) {
+      console.error('Failed to create branch:', err);
+    }
+  }, [legislationId]);
 
-  const handleDeleteBranch = useCallback((data) => {
-    console.log('Delete branch:', data, branchToDelete);
-    setBranchToDelete(null);
-  }, [branchToDelete]);
+  const handleDeleteBranch = useCallback(async () => {
+    if (!legislationId || !branchToDelete) {
+      console.log('Delete branch (mock):', branchToDelete);
+      setBranchToDelete(null);
+      return;
+    }
+    try {
+      await branchService.delete(legislationId, branchToDelete.id);
+      await fetchBranches(); // Refresh the list
+      setBranchToDelete(null);
+      setIsDeleteBranchOpen(false);
+    } catch (err) {
+      console.error('Failed to delete branch:', err);
+    }
+  }, [legislationId, branchToDelete]);
 
-  const handleMergeBranches = useCallback((data) => {
-    console.log('Merge branches:', data);
-  }, []);
+  const handleMergeBranches = useCallback(async (data) => {
+    if (!legislationId) {
+      console.log('Merge branches (mock):', data);
+      return;
+    }
+    try {
+      await branchService.mergeBranch(legislationId, data.sourceBranchId, data.targetBranchId);
+      await fetchBranches(); // Refresh the list
+      setIsMergeBranchesOpen(false);
+    } catch (err) {
+      console.error('Failed to merge branches:', err);
+    }
+  }, [legislationId]);
+
+  const handleToggleApply = useCallback(async (branchId) => {
+    const isCurrentlyApplied = appliedBranches.has(branchId);
+
+    // Optimistically update UI
+    setAppliedBranches(prev => {
+      const next = new Set(prev);
+      if (next.has(branchId)) {
+        next.delete(branchId);
+      } else {
+        next.add(branchId);
+      }
+      return next;
+    });
+
+    // Call API if legislationId is available
+    if (legislationId) {
+      try {
+        await branchService.applyBranch(legislationId, branchId, !isCurrentlyApplied);
+      } catch (err) {
+        console.error('Failed to toggle apply:', err);
+        // Revert on error
+        setAppliedBranches(prev => {
+          const next = new Set(prev);
+          if (isCurrentlyApplied) {
+            next.add(branchId);
+          } else {
+            next.delete(branchId);
+          }
+          return next;
+        });
+      }
+    }
+  }, [legislationId, appliedBranches]);
 
   const openDeleteModal = useCallback((branch) => {
     setBranchToDelete(branch);
@@ -348,7 +607,30 @@ const BranchingModal = ({ isOpen, onClose, zoningLawName = 'Zoning By-Law Amendm
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                <span className="ml-3 text-gray-600">Loading branches...</span>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !isLoading && (
+              <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">Failed to load branches: {error}</p>
+                <button
+                  onClick={fetchBranches}
+                  className="mt-2 text-sm text-red-700 underline hover:no-underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
             {/* Branches Section */}
+            {!isLoading && (
+            <>
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900">Branches</h3>
@@ -370,12 +652,14 @@ const BranchingModal = ({ isOpen, onClose, zoningLawName = 'Zoning By-Law Amendm
                 </div>
               </div>
               
-              {/* Branch Timeline */}
-              <div className="bg-gray-50 rounded-lg border border-gray-200">
-                <BranchTimeline
+              {/* Branch Timeline - Gantt View */}
+              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <BranchTimelineGantt
                   branches={branches}
                   onBranchSelect={handleBranchSelect}
                   selectedBranch={selectedBranch}
+                  appliedBranches={appliedBranches}
+                  onToggleApply={handleToggleApply}
                 />
               </div>
             </div>
@@ -393,6 +677,8 @@ const BranchingModal = ({ isOpen, onClose, zoningLawName = 'Zoning By-Law Amendm
                 />
               </div>
             </div>
+            </>
+            )}
           </div>
 
           {/* Footer */}
