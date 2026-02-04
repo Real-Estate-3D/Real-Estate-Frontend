@@ -10,7 +10,19 @@ import { useExportWorker } from '../../hooks/useExportWorker';
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showExportPopup, setShowExportPopup] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { exports, exportLayer, clearExport, clearAllExports } = useExportWorker();
+
+  // Detect mobile screen size
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Memoize active exports calculation
   const activeExports = useMemo(() => 
@@ -42,23 +54,25 @@ const Layout = () => {
   );
 
   return (
-    <div className="flex h-screen text-gray-100 overflow-hidden p-4 gap-4"
-    style={{
-      backgroundImage : 'url("./bg.png")'
-    }}
+    <div
+      className="flex h-screen text-gray-100 overflow-hidden p-2 sm:p-4 gap-2 sm:gap-4"
+      style={{
+        backgroundImage : 'url("./bg.png")'
+      }}
     >
-      <div className="shrink-0 overflow-visible h-full ">
+      {/* Sidebar wrapper - hidden on mobile when closed */}
+      <div className={`shrink-0 overflow-visible h-full ${isMobile && !isSidebarOpen ? 'hidden' : ''}`}>
         <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
       </div>
-      
-      <div className="flex-1 flex flex-col overflow-hidden gap-3">
-        <Navbar 
+
+      <div className="flex-1 flex flex-col overflow-hidden gap-2 sm:gap-3 min-w-0">
+        <Navbar
           onToggleSidebar={handleToggleSidebar}
           onExportClick={handleExportClick}
           exportCount={activeExports.length}
         />
-        
-        <main className="flex-1 overflow-hidden rounded-xl">
+
+        <main className="flex-1 overflow-hidden rounded-lg sm:rounded-xl">
           <Outlet context={outletContext} />
         </main>
 

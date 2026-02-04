@@ -15,6 +15,15 @@ export function OnboardingProvider({ children }) {
   const [activeFlow, setActiveFlow] = useState(null);
   const [isActive, setIsActive] = useState(false);
 
+  // Check URL parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('resetOnboarding') === 'true') {
+      console.log('[Onboarding] Detected resetOnboarding=true in URL, resetting all flows');
+      resetOnboardingStorage('all');
+    }
+  }, []);
+
   /**
    * Start an onboarding flow
    * @param {Object} flow - The flow configuration from onboardingFlows.js
@@ -22,17 +31,18 @@ export function OnboardingProvider({ children }) {
    */
   const startOnboarding = useCallback((flow, force = false) => {
     if (!flow) {
-      console.warn('No flow provided to startOnboarding');
+      console.warn('[Onboarding] No flow provided to startOnboarding');
       return;
     }
 
     // Check if already completed (unless forced)
-    if (!force && isOnboardingCompleted(flow.storageKey)) {
-      console.log(`Onboarding "${flow.id}" already completed`);
+    const isCompleted = isOnboardingCompleted(flow.storageKey);
+    if (!force && isCompleted) {
+      console.log(`[Onboarding] Flow "${flow.id}" already completed, skipping`);
       return;
     }
 
-    console.log(`Starting onboarding: ${flow.id}`);
+    console.log(`[Onboarding] Starting flow: ${flow.id} (storageKey: ${flow.storageKey})`);
     setActiveFlow(flow);
     setIsActive(true);
   }, []);
@@ -42,8 +52,16 @@ export function OnboardingProvider({ children }) {
    */
   const completeOnboarding = useCallback(() => {
     if (activeFlow) {
-      console.log(`Completing onboarding: ${activeFlow.id}`);
+      console.log(`[Onboarding] Completing flow: ${activeFlow.id} (storageKey: ${activeFlow.storageKey})`);
       markOnboardingCompleted(activeFlow.storageKey);
+
+      // Verify it was saved
+      const saved = isOnboardingCompleted(activeFlow.storageKey);
+      console.log(`[Onboarding] Verification - saved: ${saved}, localStorage value: ${localStorage.getItem(activeFlow.storageKey)}`);
+
+      if (!saved) {
+        console.error(`[Onboarding] ERROR: Failed to save completion status for ${activeFlow.id}`);
+      }
     }
     setActiveFlow(null);
     setIsActive(false);
@@ -51,18 +69,32 @@ export function OnboardingProvider({ children }) {
 
   /**
    * Cancel the current onboarding flow
+   * Also marks it as completed so it won't show again
    */
   const cancelOnboarding = useCallback(() => {
-    console.log('Cancelling onboarding');
+    if (activeFlow) {
+      console.log(`[Onboarding] Cancelling flow: ${activeFlow.id} (storageKey: ${activeFlow.storageKey})`);
+      // Mark as completed so it won't show again
+      markOnboardingCompleted(activeFlow.storageKey);
+
+      // Verify it was saved
+      const saved = isOnboardingCompleted(activeFlow.storageKey);
+      console.log(`[Onboarding] Marked cancelled flow as completed - saved: ${saved}`);
+
+      if (!saved) {
+        console.error(`[Onboarding] ERROR: Failed to save completion status for cancelled flow ${activeFlow.id}`);
+      }
+    }
     setActiveFlow(null);
     setIsActive(false);
-  }, []);
+  }, [activeFlow]);
 
   /**
    * Reset onboarding state
    * @param {string} storageKey - The flow to reset, or 'all' for everything
    */
   const resetOnboarding = useCallback((storageKey = 'all') => {
+    console.log(`[Onboarding] Resetting: ${storageKey}`);
     resetOnboardingStorage(storageKey);
     if (storageKey === 'all' || storageKey === activeFlow?.storageKey) {
       setActiveFlow(null);
@@ -135,16 +167,22 @@ export function usePageOnboarding(flow) {
   useEffect(() => {
     if (!flow) return;
 
+    const isCompleted = isFlowCompleted(flow.storageKey);
+    console.log(`[Onboarding] usePageOnboarding - flow: ${flow.id}, completed: ${isCompleted}`);
+
     // Auto-start if configured and not completed
     if (shouldAutoStart(flow)) {
+      console.log(`[Onboarding] Auto-starting page flow: ${flow.id} in 500ms`);
       // Small delay to ensure page is fully loaded
       const timer = setTimeout(() => {
         startOnboarding(flow);
       }, 500);
 
       return () => clearTimeout(timer);
+    } else {
+      console.log(`[Onboarding] Not auto-starting ${flow.id}: shouldAutoStart returned false`);
     }
-  }, [flow, startOnboarding]);
+  }, [flow, startOnboarding, isFlowCompleted]);
 
   return {
     isCompleted: isFlowCompleted(flow?.storageKey),

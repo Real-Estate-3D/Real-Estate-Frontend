@@ -226,6 +226,17 @@ const MappingZoning = () => {
     }, 300);
   }, []);
 
+  const handleAutoLayerChange = useCallback((changes) => {
+    if (!changes) return;
+    setEnabledLayers(prev => ({
+      ...prev,
+      ...changes,
+    }));
+    if (changes[LAYER_NAMES.BUILDINGS]) {
+      setShowLayersPanel(true);
+    }
+  }, []);
+
   useEffect(() => {
     const handleExportEvent = (event) => {
       const { layerName, format, url } = event.detail;
@@ -442,6 +453,7 @@ const MappingZoning = () => {
               ref={mapRef}
               onWMSFeatureClick={handleWMSFeatureClick}
               onMunicipalityClick={handleMunicipalityClick}
+              onAutoLayerChange={handleAutoLayerChange}
             />
           </div>
         </Suspense>

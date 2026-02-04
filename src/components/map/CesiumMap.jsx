@@ -15,6 +15,7 @@ import {
   fetchGeoServerLayers,
   filterLayersByMunicipality,
   LAYER_NAMES,
+  buildMunicipalityCqlFilter,
 } from "../../utils/geoServerLayerManager";
 import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
 
@@ -68,8 +69,20 @@ const VIEW_LEVELS = {
   PARCEL: "parcel", // Individual parcel selected
 };
 
+// Camera height thresholds (meters) for auto layer switching
+const ZOOM_THRESHOLDS = {
+  REGION: 120000, // switch from overview to lower-tier view
+  DETAIL: 30000, // switch from lower-tier to detailed layers
+};
+
+const ZOOM_STAGES = {
+  OVERVIEW: "overview",
+  LOWER_TIER: "lower_tier",
+  DETAIL: "detail",
+};
+
 const CesiumMap = forwardRef(
-  ({ onWMSFeatureClick, onMunicipalityClick }, ref) => {
+  ({ onWMSFeatureClick, onMunicipalityClick, onAutoLayerChange }, ref) => {
     const cesiumContainer = useRef(null);
     const viewerRef = useRef(null);
     const layersRef = useRef([]);
@@ -77,6 +90,17 @@ const CesiumMap = forwardRef(
     const highlightEntityRef = useRef(null);
     const currentCqlFilterRef = useRef(CQL_FILTERS.INITIAL);
     const selectedDivisionIdRef = useRef(null);
+    const currentMunicipalityIdRef = useRef(null);
+    const currentRegionIdRef = useRef(null);
+    const currentMunicipalityTypeRef = useRef(null);
+    const zoomStageRef = useRef(ZOOM_STAGES.OVERVIEW);
+    const zoomContextRef = useRef({
+      stage: ZOOM_STAGES.OVERVIEW,
+      municipalityId: null,
+      regionId: null,
+      municipalityType: null,
+    });
+    const cameraMoveEndHandlerRef = useRef(null);
     const [selectedFeature, setSelectedFeature] = useState(null);
     const [currentMunicipality, setCurrentMunicipality] = useState(null);
     const [viewLevel, setViewLevel] = useState(VIEW_LEVELS.OVERVIEW);
@@ -571,7 +595,7 @@ const CesiumMap = forwardRef(
     }, [fetchParcelFeatureByPoint, queryFeatureInfo, convertGeoJSONToWKT]);
 
     // Function to update municipality layer with new CQL filter
-    const updateMunicipalityLayerFilter = useCallback((cqlFilter) => {
+    const updateMunicipalityLayerFilter = useCallback((cqlFilter, show = true) => {
       if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
 
       const viewer = viewerRef.current;
@@ -633,7 +657,7 @@ const CesiumMap = forwardRef(
           : imageryLayers.addImageryProvider(provider);
 
       cesiumLayer.alpha = config.opacity;
-      cesiumLayer.show = true; // Always show after filter update
+      cesiumLayer.show = show;
 
       // Update the reference
       layersRef.current[layerIndex] = { config, cesiumLayer, provider };
@@ -679,7 +703,7 @@ const CesiumMap = forwardRef(
     }, []);
 
     // Function to update parcels layer with CQL filter based on municipality ID
-    const updateParcelsLayerFilter = useCallback((municipalityId) => {
+    const updateParcelsLayerFilter = useCallback((municipalityId, showWithoutFilter = false) => {
       if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
 
       const viewer = viewerRef.current;
@@ -735,16 +759,76 @@ const CesiumMap = forwardRef(
         layerIndex
       );
       cesiumLayer.alpha = config.opacity;
-      cesiumLayer.show = municipalityId ? true : false; // Show only when filtered
+      cesiumLayer.show = municipalityId ? true : showWithoutFilter;
 
       // Update the reference
       layersRef.current[layerIndex] = { config, cesiumLayer, provider };
-      selectedDivisionIdRef.current = municipalityId;
+      selectedDivisionIdRef.current = municipalityId || null;
 
       console.log(
         `Parcels layer updated with municipality_id: ${municipalityId || "none"}`
       );
     }, []);
+
+    const updateMunicipalityScopedLayerFilter = useCallback(
+      (layerName, municipalityId, showWithoutFilter = false) => {
+        if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+        const viewer = viewerRef.current;
+        const imageryLayers = viewer.imageryLayers;
+
+        const layerIndex = layersRef.current.findIndex(
+          (l) => l.config.name === layerName
+        );
+        if (layerIndex === -1) {
+          console.warn(`Layer not found: ${layerName}`);
+          return;
+        }
+
+        const layerEntry = layersRef.current[layerIndex];
+        const config = layerEntry.config;
+
+        let cesiumLayerIndex = -1;
+        if (layerEntry.cesiumLayer) {
+          cesiumLayerIndex = imageryLayers.indexOf(layerEntry.cesiumLayer);
+          if (cesiumLayerIndex !== -1) {
+            imageryLayers.remove(layerEntry.cesiumLayer, false);
+          }
+        }
+
+        const parameters = {
+          service: "WMS",
+          version: "1.1.1",
+          format: "image/png",
+          transparent: "true",
+          tiled: "true",
+          tilesOrigin: "-180,-90",
+          styles: "",
+        };
+
+        if (municipalityId) {
+          parameters.CQL_FILTER = buildMunicipalityCqlFilter(municipalityId);
+        }
+
+        const provider = new Cesium.WebMapServiceImageryProvider({
+          url: GEOSERVER_CONFIG.wmsUrl,
+          layers: `${GEOSERVER_CONFIG.workspace}:${config.name}`,
+          parameters,
+          enablePickFeatures: true,
+        });
+
+        const cesiumLayer =
+          cesiumLayerIndex !== -1
+            ? imageryLayers.addImageryProvider(provider, cesiumLayerIndex)
+            : imageryLayers.addImageryProvider(provider);
+
+        cesiumLayer.alpha = config.opacity;
+        cesiumLayer.show = municipalityId ? true : showWithoutFilter;
+
+        layersRef.current[layerIndex] = { config, cesiumLayer, provider };
+      },
+      [buildMunicipalityCqlFilter]
+    );
 
     // Function to update wards layer with CQL filter based on municipality ID
     const updateWardsLayerFilter = useCallback((municipalityId, show = true) => {
@@ -946,23 +1030,24 @@ const CesiumMap = forwardRef(
             cesiumLayer.show = false;
           }
         } else if (tierType === "lower_tier" || tierType === "single_tier") {
-          // MUNICIPALITY VIEW: Show parcels and municipality-specific layers
+          // MUNICIPALITY VIEW: Respect current toggles; adjust alpha for visible layers
           if (config.category === "admin") {
-            // Keep boundaries visible but dimmed
-            cesiumLayer.show = true;
-            cesiumLayer.alpha =
-              config.name === LAYER_NAMES.ALL_MUNICIPALITIES ? 0.2 : 0.3;
+            // Don't force visibility; only adjust alpha if already visible
+            if (cesiumLayer.show) {
+              cesiumLayer.alpha =
+                config.name === LAYER_NAMES.ALL_MUNICIPALITIES ? 0.2 : 0.3;
+            }
           } else if (config.category === "parcels") {
-            // Always show parcels at this level
-            cesiumLayer.show = true;
-            cesiumLayer.alpha = config.opacity;
+            if (cesiumLayer.show) {
+              cesiumLayer.alpha = config.opacity;
+            }
           } else if (
             config.municipality === municipalityKey ||
             config.municipality === "all"
           ) {
-            // Show only layers matching this municipality
-            cesiumLayer.show = config.visible || false;
-            cesiumLayer.alpha = config.opacity;
+            if (cesiumLayer.show) {
+              cesiumLayer.alpha = config.opacity;
+            }
           } else {
             cesiumLayer.show = false;
           }
@@ -977,6 +1062,16 @@ const CesiumMap = forwardRef(
       setCurrentRegion(null);
       setViewHierarchy([]);
       setSelectedFeature(null);
+      currentMunicipalityIdRef.current = null;
+      currentRegionIdRef.current = null;
+      currentMunicipalityTypeRef.current = null;
+      zoomStageRef.current = ZOOM_STAGES.OVERVIEW;
+      zoomContextRef.current = {
+        stage: ZOOM_STAGES.OVERVIEW,
+        municipalityId: null,
+        regionId: null,
+        municipalityType: null,
+      };
 
       // Clear any parcel highlight
       if (viewerRef.current && highlightEntityRef.current) {
@@ -990,6 +1085,12 @@ const CesiumMap = forwardRef(
 
       // Clear parcels filter (hide parcels at overview level)
       updateParcelsLayerFilter(null);
+
+      // Hide lower tier and detail layers
+      updateLowerTierLayerFilter(null, false);
+      updateMunicipalityScopedLayerFilter(LAYER_NAMES.BUILDINGS, null, false);
+      updateMunicipalityScopedLayerFilter(LAYER_NAMES.ROADS, null, false);
+      updateMunicipalityScopedLayerFilter(LAYER_NAMES.PARKS, null, false);
 
       // Hide wards layer
       updateWardsLayerFilter(null, false);
@@ -1015,8 +1116,144 @@ const CesiumMap = forwardRef(
     }, [
       updateMunicipalityLayerFilter,
       updateParcelsLayerFilter,
+      updateLowerTierLayerFilter,
+      updateMunicipalityScopedLayerFilter,
       updateWardsLayerFilter,
     ]);
+
+    const getZoomStageForHeight = useCallback((height) => {
+      const municipalityType = currentMunicipalityTypeRef.current;
+      if (municipalityType === "single_tier") {
+        return height > ZOOM_THRESHOLDS.REGION
+          ? ZOOM_STAGES.OVERVIEW
+          : ZOOM_STAGES.DETAIL;
+      }
+      if (municipalityType === "upper_tier") {
+        return height > ZOOM_THRESHOLDS.DETAIL
+          ? ZOOM_STAGES.LOWER_TIER
+          : ZOOM_STAGES.DETAIL;
+      }
+
+      if (height > ZOOM_THRESHOLDS.REGION) return ZOOM_STAGES.OVERVIEW;
+      if (height > ZOOM_THRESHOLDS.DETAIL) return ZOOM_STAGES.LOWER_TIER;
+      return ZOOM_STAGES.DETAIL;
+    }, []);
+
+    const applyZoomStage = useCallback((stage) => {
+      const visibilityChanges = {};
+      const municipalityId = currentMunicipalityIdRef.current;
+      const regionId = currentRegionIdRef.current;
+
+      if (stage === ZOOM_STAGES.OVERVIEW) {
+        updateMunicipalityLayerFilter(CQL_FILTERS.INITIAL, true);
+        setMunicipalitiesLayerVisible(true);
+        updateLowerTierLayerFilter(null, false);
+
+        updateParcelsLayerFilter(null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.BUILDINGS, null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.ROADS, null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.PARKS, null, false);
+
+        visibilityChanges[LAYER_NAMES.ALL_MUNICIPALITIES] = true;
+        visibilityChanges[LAYER_NAMES.LOWER_TIER] = false;
+        visibilityChanges[LAYER_NAMES.PARCELS] = false;
+        visibilityChanges[LAYER_NAMES.BUILDINGS] = false;
+        visibilityChanges[LAYER_NAMES.ROADS] = false;
+        visibilityChanges[LAYER_NAMES.PARKS] = false;
+      } else if (stage === ZOOM_STAGES.LOWER_TIER) {
+        updateMunicipalityLayerFilter("tier_type = 'lower_tier'", false);
+        setMunicipalitiesLayerVisible(false);
+        const lowerTierFilter = regionId ? `parent_id = '${regionId}'` : null;
+        updateLowerTierLayerFilter(lowerTierFilter, true);
+
+        updateParcelsLayerFilter(null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.BUILDINGS, null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.ROADS, null, false);
+        updateMunicipalityScopedLayerFilter(LAYER_NAMES.PARKS, null, false);
+
+        visibilityChanges[LAYER_NAMES.ALL_MUNICIPALITIES] = false;
+        visibilityChanges[LAYER_NAMES.LOWER_TIER] = true;
+        visibilityChanges[LAYER_NAMES.PARCELS] = false;
+        visibilityChanges[LAYER_NAMES.BUILDINGS] = false;
+        visibilityChanges[LAYER_NAMES.ROADS] = false;
+        visibilityChanges[LAYER_NAMES.PARKS] = false;
+      } else if (stage === ZOOM_STAGES.DETAIL) {
+        updateLowerTierLayerFilter(null, false);
+        setMunicipalitiesLayerVisible(false);
+
+        updateParcelsLayerFilter(municipalityId, true);
+        updateMunicipalityScopedLayerFilter(
+          LAYER_NAMES.BUILDINGS,
+          municipalityId,
+          true
+        );
+        updateMunicipalityScopedLayerFilter(
+          LAYER_NAMES.ROADS,
+          municipalityId,
+          true
+        );
+        updateMunicipalityScopedLayerFilter(
+          LAYER_NAMES.PARKS,
+          municipalityId,
+          true
+        );
+
+        visibilityChanges[LAYER_NAMES.ALL_MUNICIPALITIES] = false;
+        visibilityChanges[LAYER_NAMES.LOWER_TIER] = false;
+        visibilityChanges[LAYER_NAMES.PARCELS] = true;
+        visibilityChanges[LAYER_NAMES.BUILDINGS] = true;
+        visibilityChanges[LAYER_NAMES.ROADS] = true;
+        visibilityChanges[LAYER_NAMES.PARKS] = true;
+      }
+
+      return visibilityChanges;
+    }, [
+      updateMunicipalityLayerFilter,
+      setMunicipalitiesLayerVisible,
+      updateLowerTierLayerFilter,
+      updateParcelsLayerFilter,
+      updateMunicipalityScopedLayerFilter,
+    ]);
+
+    const handleZoomStageChange = useCallback((height) => {
+      const nextStage = getZoomStageForHeight(height);
+      const municipalityId = currentMunicipalityIdRef.current;
+      const regionId = currentRegionIdRef.current;
+      const municipalityType = currentMunicipalityTypeRef.current;
+      const lastContext = zoomContextRef.current;
+
+      const contextChanged =
+        nextStage !== lastContext.stage ||
+        (nextStage === ZOOM_STAGES.DETAIL &&
+          municipalityId !== lastContext.municipalityId) ||
+        (nextStage === ZOOM_STAGES.LOWER_TIER &&
+          regionId !== lastContext.regionId) ||
+        (nextStage === ZOOM_STAGES.OVERVIEW &&
+          municipalityType !== lastContext.municipalityType);
+
+      if (!contextChanged) return;
+
+      zoomStageRef.current = nextStage;
+      zoomContextRef.current = {
+        stage: nextStage,
+        municipalityId,
+        regionId,
+        municipalityType,
+      };
+      const visibilityChanges = applyZoomStage(nextStage);
+
+      if (nextStage === ZOOM_STAGES.OVERVIEW) {
+        setViewLevel(VIEW_LEVELS.OVERVIEW);
+      } else if (nextStage === ZOOM_STAGES.LOWER_TIER) {
+        setViewLevel(VIEW_LEVELS.REGION);
+      } else if (viewLevelRef.current !== VIEW_LEVELS.PARCEL) {
+        setViewLevel(VIEW_LEVELS.MUNICIPALITY);
+      }
+
+      if (onAutoLayerChange) {
+        onAutoLayerChange(visibilityChanges);
+      }
+    }, [applyZoomStage, getZoomStageForHeight, onAutoLayerChange]);
 
     const drillDownToMunicipality = useCallback(
       async (municipalityData) => {
@@ -1146,14 +1383,18 @@ const CesiumMap = forwardRef(
           const newHierarchy = [{ name, type, id }];
           console.log("Setting upper_tier hierarchy:", newHierarchy);
           setViewHierarchy(newHierarchy);
+          currentRegionIdRef.current = id || null;
+          currentMunicipalityIdRef.current = null;
+          currentMunicipalityTypeRef.current = "upper_tier";
 
-          // For upper_tier: Show all_municipalities layer filtered by parent_id = municipality_id
+          // For upper_tier: Filter all_municipalities for queries, display lower_tier layer
           if (id) {
             console.log(`Showing children with parent_id: ${id}`);
-            // Show the all_municipalities layer filtered by this municipality's ID as parent_id
+            // Keep all_municipalities filtered for pick queries; show lower_tier boundaries for display
             const childrenFilter = CQL_FILTERS.regionDrillDown(id);
-            updateMunicipalityLayerFilter(childrenFilter);
-            setMunicipalitiesLayerVisible(true);
+            updateMunicipalityLayerFilter(childrenFilter, false);
+            setMunicipalitiesLayerVisible(false);
+            updateLowerTierLayerFilter(`parent_id = '${id}'`, true);
           } else {
             console.error('⚠️ Cannot drill down: municipality_id is missing!');
             console.log('Municipality data:', { name, type, id, geometry });
@@ -1178,10 +1419,10 @@ const CesiumMap = forwardRef(
         } else if (type === "lower_tier") {
           setViewLevel(VIEW_LEVELS.MUNICIPALITY);
           setCurrentMunicipality(normalizedName);
-
-          // Filter parcels to show only this municipality's parcels
-          if (id) {
-            updateParcelsLayerFilter(id);
+          currentMunicipalityIdRef.current = id || null;
+          currentMunicipalityTypeRef.current = "lower_tier";
+          if (!currentRegion) {
+            currentRegionIdRef.current = null;
           }
 
           if (currentRegion) {
@@ -1203,6 +1444,9 @@ const CesiumMap = forwardRef(
         } else if (type === "single_tier") {
           setViewLevel(VIEW_LEVELS.MUNICIPALITY);
           setCurrentMunicipality(normalizedName);
+          currentMunicipalityIdRef.current = id || null;
+          currentRegionIdRef.current = null;
+          currentMunicipalityTypeRef.current = "single_tier";
 
           // Hide municipalities layer completely
           setMunicipalitiesLayerVisible(false);
@@ -1210,11 +1454,6 @@ const CesiumMap = forwardRef(
           // Show wards for this single_tier municipality (using id as parent_id)
           if (id) {
             updateWardsLayerFilter(id, true);
-          }
-
-          // Filter parcels to show only this municipality's parcels
-          if (id) {
-            updateParcelsLayerFilter(id);
           }
 
           const newHierarchy = [{ name, type, id }];
@@ -1339,7 +1578,7 @@ const CesiumMap = forwardRef(
         onMunicipalityClick,
         switchLayerContext,
         updateMunicipalityLayerFilter,
-        updateParcelsLayerFilter,
+        updateLowerTierLayerFilter,
         updateWardsLayerFilter,
         setMunicipalitiesLayerVisible,
       ]
@@ -1351,6 +1590,7 @@ const CesiumMap = forwardRef(
       queryFeatureInfo,
       queryParcelWithRelatedData,
       drillDownToMunicipality,
+      handleZoomStageChange,
     };
 
     // Helper function to clear any existing highlight
@@ -2363,6 +2603,18 @@ const CesiumMap = forwardRef(
             }
           }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
+          const moveEndHandler = () => {
+            if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+            const height = viewerRef.current.camera.positionCartographic.height;
+            const { handleZoomStageChange: handleZoomChange } =
+              functionsRef.current;
+            if (handleZoomChange) {
+              handleZoomChange(height);
+            }
+          };
+          viewerRef.current.camera.moveEnd.addEventListener(moveEndHandler);
+          cameraMoveEndHandlerRef.current = moveEndHandler;
+
           viewerRef.current.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(
               INITIAL_CAMERA.longitude,
@@ -2386,6 +2638,12 @@ const CesiumMap = forwardRef(
 
       return () => {
         if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          if (cameraMoveEndHandlerRef.current) {
+            viewerRef.current.camera.moveEnd.removeEventListener(
+              cameraMoveEndHandlerRef.current
+            );
+            cameraMoveEndHandlerRef.current = null;
+          }
           viewerRef.current.destroy();
           viewerRef.current = null;
           layersRef.current = [];

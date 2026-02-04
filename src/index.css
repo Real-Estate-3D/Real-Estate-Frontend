@@ -13,6 +13,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Custom scrollbar for sidebar navigation - Webkit browsers (Chrome, Safari, Edge) */
+nav[data-onboard="sidebar"]::-webkit-scrollbar {
+  width: 6px;
+}
+
+nav[data-onboard="sidebar"]::-webkit-scrollbar-track {
+  background: #F8FAFC;
+  border-radius: 3px;
+}
+
+nav[data-onboard="sidebar"]::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+nav[data-onboard="sidebar"]::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
 /* Custom animations for UI polish */
 @keyframes fadeInUp {
   from {

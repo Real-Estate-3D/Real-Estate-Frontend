@@ -1,8 +1,7 @@
 // File: src/components/layout/Sidebar.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   DashboardIcon,
   ProjectsIcon,
@@ -39,219 +38,276 @@ const Logo = () => (
   </svg>
 );
 
-const Sidebar = () => {
+// Move menu items outside component to prevent recreation on every render
+const MENU_ITEMS = [
+  { icon: DashboardIcon, path: '/', label: 'Dashboard' },
+
+  { type: 'group', label: 'Projects & Delivery' },
+  { icon: ProjectsIcon, path: '/projects', label: 'Projects' },
+  { icon: WorkflowsIcon, path: '/workflows', label: 'Workflows' },
+  { icon: ChangeEventsIcon, path: '/change-events', label: 'Change Events' },
+  { icon: SubmittalsIcon, path: '/submittals', label: 'Submittals' },
+
+  { type: 'group', label: 'Mapping, Zoning & Legislation' },
+  { icon: MappingAndZoningIcon, path: '/mapping', label: 'Mapping and Zoning' },
+  { icon: MapToolsIcon, path: '/map-tools', label: 'Map Tools' },
+  { icon: LegislationIcon, path: '/legislation', label: 'Legislation' },
+
+  { type: 'group', label: 'Requests & Municipal Hub' },
+  { icon: ApprovalsIcon, path: '/approvals', label: 'Approvals' },
+  { icon: MuncipalHubIcon, path: '/municipal', label: 'Municipal Hub' },
+
+  { type: 'group', label: 'Financial and Estimates' },
+  { icon: EstimatesandTakeoffIcon, path: '/estimates', label: 'Estimates and TakeOffs' },
+  { icon: AccountingIcon, path: '/accounting', label: 'Accounting' },
+
+  { type: 'group', label: 'Data, Files and Integration' },
+  { icon: DataManagementIcon, path: '/data-management', label: 'Data Management' },
+  { icon: FileManagerIcon, path: '/file-manager', label: 'File Manager' },
+  { icon: ThirdPartyIntegrationsIcon, path: '/integrations', label: 'Third-Party Integrations' },
+  { icon: ProjectOrganizationManagementIconsIcon, path: '/organization', label: 'Organization Management' },
+];
+
+// Memoized menu item component for better performance
+const MenuItem = React.memo(({ item, isActive, isExpanded, prevItemIsGroup }) => {
+  return (
+    <Link
+      to={item.path}
+      aria-label={item.label}
+      className="relative flex items-center"
+      style={{
+        height: 'clamp(36px, 44px, 48px)', // Responsive height: 36px for small screens, 44px default
+        marginTop: prevItemIsGroup && !isExpanded ? '6px' : '0px',
+        contain: 'layout style paint',
+      }}
+    >
+      <div
+        className={`absolute inset-0 flex items-center rounded-lg ${
+          isExpanded ? 'gap-2 px-3' : 'justify-center'
+        } ${
+          isActive
+            ? 'text-[#0073FC]'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`}
+        style={{
+          width: isExpanded ? '240px' : '44px',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        {isActive && (
+          <div
+            className="absolute inset-0 rounded-lg"
+            style={{
+              background: 'linear-gradient(116.61deg, rgba(90, 178, 255, 0.1875) 5%, rgba(88, 172, 255, 0.125) 50.49%, rgba(78, 169, 255, 0.175) 95.97%)',
+              boxShadow: '0px 2px 4px rgba(1, 77, 254, 0.08)',
+            }}
+          />
+        )}
+        <div className="shrink-0 flex items-center justify-center z-10" style={{ width: 'clamp(18px, 20px, 20px)', height: 'clamp(18px, 20px, 20px)' }}>
+          <item.icon style={{ width: '100%', height: '100%' }} />
+        </div>
+        <span
+          className="whitespace-nowrap font-medium z-10 overflow-hidden"
+          style={{
+            fontSize: 'clamp(12px, 14px, 14px)', // Responsive font size
+            width: isExpanded ? 'auto' : '0px',
+            opacity: isExpanded ? 1 : 0,
+            transition: 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          {item.label}
+        </span>
+      </div>
+    </Link>
+  );
+});
+
+MenuItem.displayName = 'MenuItem';
+
+const Sidebar = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  const menuItems = [
-    { icon: DashboardIcon, path: '/', label: 'Dashboard' },
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
 
-    { type: 'group', label: 'Projects & Delivery' },
-    { icon: ProjectsIcon, path: '/projects', label: 'Projects' },
-    { icon: WorkflowsIcon, path: '/workflows', label: 'Workflows' },
-    { icon: ChangeEventsIcon, path: '/change-events', label: 'Change Events' },
-    { icon: SubmittalsIcon, path: '/submittals', label: 'Submittals' },
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
-    { type: 'group', label: 'Mapping, Zoning & Legislation' },
-    { icon: MappingAndZoningIcon, path: '/mapping', label: 'Mapping and Zoning' },
-    { icon: MapToolsIcon, path: '/map-tools', label: 'Map Tools' },
-    { icon: LegislationIcon, path: '/legislation', label: 'Legislation' },
+  // Handlers with useCallback to prevent recreation
+  const handleMouseEnter = useCallback(() => {
+    if (!isMobile) {
+      setIsExpanded(true);
+    }
+  }, [isMobile]);
 
-    { type: 'group', label: 'Requests & Municipal Hub' },
-    { icon: ApprovalsIcon, path: '/approvals', label: 'Approvals' },
-    { icon: MuncipalHubIcon, path: '/municipal', label: 'Municipal Hub' },
+  const handleMouseLeave = useCallback(() => {
+    if (!isMobile) {
+      setIsExpanded(false);
+    }
+  }, [isMobile]);
 
-    { type: 'group', label: 'Financial and Estimates' },
-    { icon: EstimatesandTakeoffIcon, path: '/estimates', label: 'Estimates and TakeOffs' },
-    { icon: AccountingIcon, path: '/accounting', label: 'Accounting' },
+  const handleBackdropClick = useCallback(() => {
+    if (isMobile && onClose) {
+      onClose();
+    }
+  }, [isMobile, onClose]);
 
-    { type: 'group', label: 'Data, Files and Integration' },
-    { icon: DataManagementIcon, path: '/data-management', label: 'Data Management' },
-    { icon: FileManagerIcon, path: '/file-manager', label: 'File Manager' },
-    { icon: ThirdPartyIntegrationsIcon, path: '/integrations', label: 'Third-Party Integrations' },
-    { icon: ProjectOrganizationManagementIconsIcon, path: '/organization', label: 'Organization Management' },
-  ];
+  // Mobile: show as drawer overlay, Desktop: show inline
+  if (isMobile && !isOpen) {
+    return null;
+  }
 
   return (
-    <motion.div
-      className="h-full bg-white flex flex-col shrink-0 z-50 rounded-xl overflow-hidden relative text-slate-900 border border-slate-200"
-      animate={{ width: isExpanded ? '256px' : '60px' }}
-      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      {/* Logo Area */}
-      <div className="h-14 flex items-center border-b border-slate-200 bg-white px-2 gap-3">
-        <div className="w-11 h-11 flex items-center justify-center shrink-0">
-          <Logo />
-        </div>
-        <motion.div
-          className="overflow-hidden whitespace-nowrap"
-          animate={{
-            width: isExpanded ? '99px' : '0px',
-            opacity: isExpanded ? 1 : 0,
-          }}
-          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+    <>
+      {/* Mobile backdrop */}
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+          onClick={handleBackdropClick}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`${
+          isMobile
+            ? 'fixed left-0 top-0 bottom-0 z-50'
+            : 'h-full relative z-10'
+        } bg-white flex flex-col shrink-0 rounded-xl overflow-hidden text-slate-900 border border-slate-200 shadow-lg`}
+        style={{
+          width: isMobile ? '256px' : isExpanded ? '256px' : '60px',
+          transform: isMobile && !isOpen ? 'translateX(-256px)' : 'translateX(0)',
+          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          willChange: 'width, transform',
+        }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {/* Logo Area - Responsive height */}
+        <div
+          className="flex items-center border-b border-slate-200 bg-white px-2 gap-2 shrink-0"
+          style={{ height: 'clamp(48px, 56px, 64px)' }} // Responsive: 48px on small screens, 56px default
         >
-          <span className="text-[#0073FC] font-semibold text-lg leading-7">
-            Blueprint
-          </span>
-        </motion.div>
-      </div>
-
-      {/* Menu Items */}
-      <nav className="flex-1 flex flex-col py-3 gap-0.5 overflow-y-auto overflow-x-hidden p-2" data-onboard="sidebar">
-        {menuItems.map((item, idx) => {
-          // Group Title
-          if (item.type === 'group') {
-            return (
-              <motion.div
-                key={idx}
-                className="overflow-hidden"
-                animate={{
-                  width: isExpanded ? '240px' : '0px',
-                  height: isExpanded ? 'auto' : '0px',
-                  opacity: isExpanded ? 1 : 0,
-                  marginTop: '8px',
-                  marginBottom: isExpanded ? '4px' : '0px',
-                }}
-                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              >
-                <div className="px-3 text-xs font-semibold uppercase whitespace-nowrap tracking-tighter" style={{ color: '#BFBFBF' }}>
-                  {item.label}
-                </div>
-              </motion.div>
-            );
-          }
-
-          // Regular Menu Item
-          const isActive = location.pathname === item.path;
-          // Check if previous item was a group heading
-          const prevItemIsGroup = idx > 0 && menuItems[idx - 1].type === 'group';
-
-          return (
-            <Link
-              key={idx}
-              to={item.path}
-              aria-label={item.label}
-              className="relative h-11 flex items-center"
-              style={{ marginTop: prevItemIsGroup && !isExpanded ? '8px' : '0px' }}
-            >
-              <motion.div
-                className={`absolute inset-0 flex items-center ${
-                  isExpanded ? 'gap-2 px-3' : 'justify-center'
-                } ${
-                  isActive
-                    ? 'text-[#0073FC]'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                animate={{
-                  width: isExpanded ? '240px' : '44px',
-                  marginLeft: isExpanded ? '0px' : 'auto',
-                  marginRight: isExpanded ? '0px' : 'auto',
-                }}
-                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'linear-gradient(116.61deg, rgba(90, 178, 255, 0.1875) 5%, rgba(88, 172, 255, 0.125) 50.49%, rgba(78, 169, 255, 0.175) 95.97%)',
-                      boxShadow: '0px 4px 9px rgba(1, 77, 254, 0.02), 0px 4px 8px rgba(1, 77, 254, 0.08), 0px 6px 6px rgba(1, 77, 254, 0.04), 0px 1px 3px rgba(1, 77, 254, 0.02)',
-                      backdropFilter: 'blur(6px)',
-                    }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-                {!isActive && (
-                  <motion.div
-                    className="absolute inset-0 rounded opacity-0 hover:opacity-100 bg-slate-100"
-                    transition={{ duration: 0.2 }}
-                  />
-                )}
-                <motion.div
-                  className="w-5 h-5 shrink-0 flex items-center justify-center z-10"
-                  layoutId={`icon-${item.path}`}
-                >
-                  <item.icon className="w-5 h-5" />
-                </motion.div>
-                <motion.span
-                  className="overflow-hidden whitespace-nowrap text-sm font-medium z-10"
-                  animate={{
-                    width: isExpanded ? 'auto' : '0px',
-                    opacity: isExpanded ? 1 : 0,
-                  }}
-                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-                >
-                  {item.label}
-                </motion.span>
-              </motion.div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Bottom Item - Settings */}
-      <div className="pb-3 px-2">
-        <Link
-          to="/settings"
-          className="relative h-11 flex items-center"
-          aria-label="Settings"
-        >
-          <motion.div
-            className={`absolute inset-0 flex items-center ${
-              isExpanded ? 'gap-2 px-3' : 'justify-center'
-            } ${
-              location.pathname === '/settings'
-                ? 'text-[#0073FC]'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-            animate={{
-              width: isExpanded ? '240px' : '44px',
-              marginLeft: isExpanded ? '0px' : 'auto',
-              marginRight: isExpanded ? '0px' : 'auto',
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 'clamp(36px, 44px, 44px)',
+              height: 'clamp(36px, 44px, 44px)'
             }}
-            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
           >
-            {location.pathname === '/settings' && (
-              <motion.div
-                layoutId="activeTab"
-                className="absolute inset-0 rounded-lg"
-                style={{
-                  background: 'linear-gradient(116.61deg, rgba(90, 178, 255, 0.1875) 5%, rgba(88, 172, 255, 0.125) 50.49%, rgba(78, 169, 255, 0.175) 95.97%)',
-                  boxShadow: '0px 4px 9px rgba(1, 77, 254, 0.02), 0px 4px 8px rgba(1, 77, 254, 0.08), 0px 6px 6px rgba(1, 77, 254, 0.04), 0px 1px 3px rgba(1, 77, 254, 0.02)',
-                  backdropFilter: 'blur(6px)',
-                }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            )}
-            {location.pathname !== '/settings' && (
-              <motion.div
-                className="absolute inset-0 rounded opacity-0 hover:opacity-100 bg-slate-100"
-                transition={{ duration: 0.2 }}
-              />
-            )}
-            <motion.div
-              className="w-5 h-5 shrink-0 flex items-center justify-center z-10"
-              layoutId="icon-/settings"
+            <Logo />
+          </div>
+          <div
+            className="overflow-hidden whitespace-nowrap"
+            style={{
+              width: isExpanded || isMobile ? '99px' : '0px',
+              opacity: isExpanded || isMobile ? 1 : 0,
+              transition: 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
+            <span
+              className="text-[#0073FC] font-semibold leading-tight"
+              style={{ fontSize: 'clamp(16px, 18px, 18px)' }} // Responsive font
             >
-              <SettingsIcon className="w-5 h-5" />
-            </motion.div>
-            <motion.span
-              className="overflow-hidden whitespace-nowrap text-sm font-medium z-10"
-              animate={{
-                width: isExpanded ? 'auto' : '0px',
-                opacity: isExpanded ? 1 : 0,
+              Blueprint
+            </span>
+          </div>
+          {isMobile && (
+            <button
+              onClick={onClose}
+              className="ml-auto flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+              style={{
+                width: 'clamp(32px, 36px, 36px)',
+                height: 'clamp(32px, 36px, 36px)'
               }}
-              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+              aria-label="Close sidebar"
             >
-              Settings
-            </motion.span>
-          </motion.div>
-        </Link>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Menu Items - Enhanced scrollbar and better spacing */}
+        <nav
+          className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden p-2 min-h-0"
+          data-onboard="sidebar"
+          style={{
+            paddingTop: 'clamp(8px, 12px, 16px)',
+            paddingBottom: 'clamp(8px, 12px, 16px)',
+            gap: 'clamp(1px, 2px, 2px)',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#CBD5E1 #F8FAFC',
+            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+          }}
+        >
+          {MENU_ITEMS.map((item, idx) => {
+            // Group Title
+            if (item.type === 'group') {
+              return (
+                <div
+                  key={idx}
+                  className="overflow-hidden"
+                  style={{
+                    width: isExpanded || isMobile ? '240px' : '0px',
+                    height: isExpanded || isMobile ? 'auto' : '0px',
+                    opacity: isExpanded || isMobile ? 1 : 0,
+                    marginTop: 'clamp(4px, 6px, 8px)',
+                    marginBottom: isExpanded || isMobile ? 'clamp(2px, 3px, 4px)' : '0px',
+                    transition: 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    contain: 'layout style',
+                  }}
+                >
+                  <div
+                    className="px-3 font-semibold uppercase whitespace-nowrap tracking-tighter"
+                    style={{
+                      fontSize: 'clamp(10px, 11px, 12px)', // Responsive font size
+                      color: '#BFBFBF'
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                </div>
+              );
+            }
+
+            // Regular Menu Item - Use memoized component
+            const isActive = location.pathname === item.path;
+            const prevItemIsGroup = idx > 0 && MENU_ITEMS[idx - 1].type === 'group';
+
+            return (
+              <MenuItem
+                key={item.path}
+                item={item}
+                isActive={isActive}
+                isExpanded={isExpanded || isMobile}
+                prevItemIsGroup={prevItemIsGroup}
+              />
+            );
+          })}
+        </nav>
+
+        {/* Bottom Item - Settings */}
+        <div className="px-2 shrink-0" style={{ paddingBottom: 'clamp(8px, 12px, 16px)' }}>
+          <MenuItem
+            item={{ icon: SettingsIcon, path: '/settings', label: 'Settings' }}
+            isActive={location.pathname === '/settings'}
+            isExpanded={isExpanded || isMobile}
+            prevItemIsGroup={false}
+          />
+        </div>
       </div>
-    </motion.div>
+    </>
   );
 };
 
