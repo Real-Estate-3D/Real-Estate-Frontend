@@ -293,6 +293,167 @@ const CesiumMap = forwardRef(
       }
     }, []);
 
+    // Fetch a single parcel feature via WFS using a point intersection
+    // Utility: approximate squared distance (deg space) between two lon/lat points
+    const squaredDistanceDeg = (lon1, lat1, lon2, lat2) => {
+      const dx = lon1 - lon2;
+      const dy = lat1 - lat2;
+      return dx * dx + dy * dy;
+    };
+
+    // Utility: quick centroid for polygon/multipolygon; falls back to first coord
+    const getFeatureCentroid = (geometry) => {
+      if (!geometry || !geometry.coordinates) return null;
+
+      if (geometry.type === "Point") {
+        return geometry.coordinates;
+      }
+
+      // Flatten coordinates for centroid calc
+      let coords = [];
+      if (geometry.type === "Polygon") {
+        coords = geometry.coordinates[0] || [];
+      } else if (geometry.type === "MultiPolygon") {
+        geometry.coordinates.forEach((poly) => {
+          if (poly && poly[0]) {
+            coords = coords.concat(poly[0]);
+          }
+        });
+      }
+
+      if (!coords.length) return null;
+
+      const sum = coords.reduce(
+        (acc, c) => {
+          acc.lon += c[0];
+          acc.lat += c[1];
+          return acc;
+        },
+        { lon: 0, lat: 0 }
+      );
+      return [sum.lon / coords.length, sum.lat / coords.length];
+    };
+
+    const fetchParcelFeatureByPoint = useCallback(async (lat, lon) => {
+      // Try multiple strategies/fields to be resilient to schema or precision issues
+      const geomFields = ["geom", "the_geom"];
+      const srid = (GEOSERVER_CONFIG.srs || "EPSG:4326").replace("EPSG:", "");
+      const pointLiteral = `SRID=${srid};POINT(${lon} ${lat})`;
+      const bufferMeters = 8; // small buffer for precision mismatches
+
+      for (const geomField of geomFields) {
+        const strategies = [
+          // 1) Use DWITHIN with tiny buffer in meters (units supported by GeoServer)
+          `DWITHIN(${geomField}, ${pointLiteral}, ${bufferMeters}, meters)`,
+          // 2) Fallback to WITHIN on a degree buffer (very small)
+          `WITHIN(${geomField}, BUFFER(${pointLiteral}, 0.0001))`,
+          // 3) Last resort: plain INTERSECTS
+          `INTERSECTS(${geomField}, ${pointLiteral})`,
+        ];
+
+        for (const cql of strategies) {
+          const wfsParams = new URLSearchParams({
+            service: "WFS",
+            version: "1.1.0",
+            request: "GetFeature",
+            typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.PARCELS}`,
+            outputFormat: "application/json",
+            srsName: GEOSERVER_CONFIG.srs,
+            maxFeatures: "10",
+            CQL_FILTER: cql,
+          });
+
+          const wfsUrl = `${GEOSERVER_CONFIG.wfsUrl}?${wfsParams.toString()}`;
+
+          try {
+            const response = await fetch(wfsUrl);
+            const data = await response.json();
+
+            if (data.features && data.features.length > 0) {
+              // Pick the feature whose centroid is closest to the click
+              let best = null;
+              let bestDist = Infinity;
+              data.features.forEach((feature) => {
+                const centroid = getFeatureCentroid(feature.geometry);
+                if (centroid) {
+                  const d = squaredDistanceDeg(centroid[0], centroid[1], lon, lat);
+                  if (d < bestDist) {
+                    bestDist = d;
+                    best = feature;
+                  }
+                } else if (!best) {
+                  best = feature;
+                }
+              });
+
+              if (best) {
+                return {
+                  geometry: best.geometry,
+                  properties: best.properties,
+                  bbox: best.bbox,
+                  id: best.id,
+                  geomField,
+                  strategy: cql,
+                };
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching parcel via WFS (${geomField}) with ${cql}:`, error);
+          }
+        }
+
+        // BBOX fallback with tiny envelope around the click (in degrees)
+        const bboxSize = 0.0002;
+        const bboxParams = new URLSearchParams({
+          service: "WFS",
+          version: "1.1.0",
+          request: "GetFeature",
+          typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.PARCELS}`,
+          outputFormat: "application/json",
+          srsName: GEOSERVER_CONFIG.srs,
+          maxFeatures: "1",
+          bbox: `${lon - bboxSize},${lat - bboxSize},${lon + bboxSize},${lat + bboxSize},${GEOSERVER_CONFIG.srs}`,
+        });
+
+        const bboxUrl = `${GEOSERVER_CONFIG.wfsUrl}?${bboxParams.toString()}`;
+        try {
+          const response = await fetch(bboxUrl);
+          const data = await response.json();
+          if (data.features && data.features.length > 0) {
+            let best = null;
+            let bestDist = Infinity;
+            data.features.forEach((feature) => {
+              const centroid = getFeatureCentroid(feature.geometry);
+              if (centroid) {
+                const d = squaredDistanceDeg(centroid[0], centroid[1], lon, lat);
+                if (d < bestDist) {
+                  bestDist = d;
+                  best = feature;
+                }
+              } else if (!best) {
+                best = feature;
+              }
+            });
+
+            if (best) {
+              return {
+                geometry: best.geometry,
+                properties: best.properties,
+                bbox: best.bbox,
+                id: best.id,
+                geomField,
+                strategy: "bbox fallback",
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching parcel via WFS bbox fallback (${geomField}):`, error);
+        }
+      }
+
+      return null;
+    }, []);
+
     // Query multiple layers for parcel information and combine the data
     const queryParcelWithRelatedData = useCallback(async (lat, lon, parcelGeometry) => {
       console.log("Querying parcel and related data...");
@@ -304,14 +465,23 @@ const CesiumMap = forwardRef(
         queryFeatureInfo(lat, lon, LAYER_NAMES.LAND_USE),
       ]);
 
+      // Fetch full parcel geometry via WFS for accurate highlighting
+      let parcelWfsData = null;
+      try {
+        parcelWfsData = await fetchParcelFeatureByPoint(lat, lon);
+      } catch (error) {
+        console.error("Error fetching parcel via WFS:", error);
+      }
+
       // For address points, use WFS with spatial intersection if we have parcel geometry
       let addressData = null;
-      if (parcelData?.geometry) {
+      const parcelGeometryForIntersection = parcelWfsData?.geometry || parcelData?.geometry;
+      if (parcelGeometryForIntersection) {
         try {
           console.log("Querying address point within parcel via WFS...");
           
           // Build WFS query with INTERSECTS filter
-          const geometryWKT = convertGeoJSONToWKT(parcelData.geometry);
+          const geometryWKT = convertGeoJSONToWKT(parcelGeometryForIntersection);
           const wfsParams = new URLSearchParams({
             service: "WFS",
             version: "1.1.0",
@@ -348,9 +518,10 @@ const CesiumMap = forwardRef(
       }
 
       // Combine all the data
+      const parcelProps = parcelWfsData?.properties || parcelData?.properties || {};
       const combinedProperties = {
         // Parcel information (primary)
-        ...(parcelData?.properties || {}),
+        ...parcelProps,
         
         // Zoning information (prefixed)
         ...(zoningData?.properties && Object.fromEntries(
@@ -374,29 +545,30 @@ const CesiumMap = forwardRef(
         )),
         
         // Metadata
-        _layerName: "Parcel (Combined)",
+        _layerName: parcelWfsData ? "Parcel (WFS + related)" : "Parcel (Combined)",
         _coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
-        _featureType: parcelData?.geometry?.type || "Polygon",
+        _featureType: (parcelWfsData?.geometry || parcelData?.geometry || parcelGeometry)?.type || "Polygon",
         _dataLayers: [
-          parcelData && "Parcel",
-          zoningData && "Zoning",
-          landUseData && "Land Use",
-          addressData && "Address Point"
+          parcelWfsData && "",
+          parcelData && "",
+          zoningData && "",
+          landUseData && "",
+          addressData && ""
         ].filter(Boolean).join(", "),
       };
 
       console.log("Combined parcel data:", {
-        parcel: !!parcelData,
+        parcel: !!parcelData || !!parcelWfsData,
         zoning: !!zoningData,
         landUse: !!landUseData,
         address: !!addressData,
       });
 
       return {
-        geometry: parcelData?.geometry || parcelGeometry,
+        geometry: parcelWfsData?.geometry || parcelData?.geometry || parcelGeometry,
         properties: combinedProperties,
       };
-    }, [queryFeatureInfo]);
+    }, [fetchParcelFeatureByPoint, queryFeatureInfo, convertGeoJSONToWKT]);
 
     // Function to update municipality layer with new CQL filter
     const updateMunicipalityLayerFilter = useCallback((cqlFilter) => {
@@ -1220,7 +1392,7 @@ const CesiumMap = forwardRef(
               position: Cesium.Cartesian3.fromDegrees(lon, lat),
               point: {
                 pixelSize: 16,
-                color: Cesium.Color.fromCssColorString("#3b82f6"),
+                color: Cesium.Color.fromCssColorString("#ef4444"),
                 outlineColor: Cesium.Color.WHITE,
                 outlineWidth: 3,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -1230,22 +1402,23 @@ const CesiumMap = forwardRef(
           }
 
           if (positions.length > 0) {
+            const boundaryColor = Cesium.Color.fromCssColorString("#ef4444");
+            const outlineColor = Cesium.Color.fromCssColorString("#b91c1c");
             highlightEntityRef.current = viewer.entities.add({
               polygon: {
                 hierarchy: new Cesium.PolygonHierarchy(positions),
-                material:
-                  Cesium.Color.fromCssColorString("#3b82f6").withAlpha(0.25),
+                material: boundaryColor.withAlpha(0.18),
                 outline: true,
-                outlineColor: Cesium.Color.fromCssColorString("#1d4ed8"),
-                outlineWidth: 3,
+                outlineColor,
+                outlineWidth: 2.5,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
               },
               polyline: {
                 positions: positions,
                 width: 4,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                  glowPower: 0.3,
-                  color: Cesium.Color.fromCssColorString("#3b82f6"),
+                  glowPower: 0.25,
+                  color: boundaryColor,
                 }),
                 clampToGround: true,
               },
@@ -2026,6 +2199,11 @@ const CesiumMap = forwardRef(
             selectionIndicator: false,
             requestRenderMode: true,
             maximumRenderTimeChange: 0.5,
+            contextOptions: {
+              webgl: {
+                preserveDrawingBuffer: true,
+              },
+            },
           });
 
           viewerRef.current.scene.globe.enableLighting = false;
@@ -2166,12 +2344,18 @@ const CesiumMap = forwardRef(
                 console.log("Parcel clicked (with related data):", combinedFeature);
                 setSelectedFeature(combinedFeature);
                 setViewLevel(VIEW_LEVELS.PARCEL);
+                if (combinedFeature.geometry) {
+                  highlightParcelGeometry(combinedFeature.geometry);
+                } else {
+                  clearParcelHighlight();
+                }
                 if (featureClickCb) {
                   featureClickCb(combinedFeature);
                 }
               } else {
                 // No parcel found, might have clicked background
                 setSelectedFeature(null);
+                clearParcelHighlight();
                 if (featureClickCb) {
                   featureClickCb(null);
                 }

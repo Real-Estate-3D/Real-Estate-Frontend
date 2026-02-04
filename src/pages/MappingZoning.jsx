@@ -464,6 +464,8 @@ const MappingZoning = () => {
             <InfoPanel
               feature={selectedFeature}
               onClose={handlePanelClose}
+              mapRef={mapRef}
+              enabledLayers={Object.keys(enabledLayers).filter(key => enabledLayers[key])}
             />
           </div>
         )}

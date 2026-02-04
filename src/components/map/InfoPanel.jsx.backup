@@ -73,7 +73,6 @@ const groupPropertiesBySource = (properties) => {
 
 const InfoPanel = memo(({ feature, onClose, mapRef, enabledLayers = [] }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-
   // Memoize property extraction to prevent recalculation
   const panelData = useMemo(() => {
     if (!feature) return null;
@@ -186,14 +185,6 @@ const InfoPanel = memo(({ feature, onClose, mapRef, enabledLayers = [] }) => {
     setIsGeneratingPDF(true);
     try {
       const viewer = mapRef.current.getViewer();
-      console.log('=== PDF Generation Debug ===');
-      console.log('Viewer available:', !!viewer && !viewer.isDestroyed());
-      console.log('Scene available:', !!viewer?.scene);
-      console.log('Canvas available:', !!viewer?.scene?.canvas);
-      console.log('Canvas dimensions:', viewer?.scene?.canvas?.width, 'x', viewer?.scene?.canvas?.height);
-      console.log('MapRef current:', !!mapRef.current);
-      console.log('Feature:', feature);
-      
       if (!viewer || viewer.isDestroyed()) {
         throw new Error('Map viewer is not available');
       }
@@ -210,7 +201,7 @@ const InfoPanel = memo(({ feature, onClose, mapRef, enabledLayers = [] }) => {
       await generateParcelPDFReport(feature, viewer, layersWithStatus);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF report: ' + error.message);
+      alert('Failed to generate PDF report. Please try again.');
     } finally {
       setIsGeneratingPDF(false);
     }
