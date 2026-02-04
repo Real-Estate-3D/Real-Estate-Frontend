@@ -1,29 +1,71 @@
 // File: src/pages/Dashboard.jsx
 
-import React from 'react';
+import React, { useState } from 'react';
+import DashboardHeader from '../components/dashboard/DashboardHeader';
+import DashboardTabs from '../components/dashboard/DashboardTabs';
+import KpiGrid from '../components/dashboard/KpiGrid';
+import NotificationsPanel from '../components/dashboard/NotificationsPanel';
+import ComplianceAlertsPanel from '../components/dashboard/ComplianceAlertsPanel';
+import ReportsFilters from '../components/dashboard/ReportsFilters';
+import AnalyticsPanel from '../components/dashboard/AnalyticsPanel';
+import BudgetAllocationCard from '../components/dashboard/BudgetAllocationCard';
+import PermitDistributionCard from '../components/dashboard/PermitDistributionCard';
+import {
+  budgetBars,
+  complianceAlerts,
+  dashboardTabs,
+  kpiCards,
+  notifications,
+  permitBreakdown,
+} from '../components/dashboard/dashboardData';
 
 const Dashboard = () => {
+  const [activeTab, setActiveTab] = useState('Overview');
+
   return (
-    <div className="p-6 bg-gray-50 h-full overflow-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Dashboard</h1>
-      <p className="text-gray-600">Welcome to BluePrint GIS Dashboard</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Projects</h3>
-          <p className="text-3xl font-bold text-blue-600">24</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Pending Approvals</h3>
-          <p className="text-3xl font-bold text-orange-600">8</p>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Active Workflows</h3>
-          <p className="text-3xl font-bold text-green-600">12</p>
-        </div>
-      </div>
+    <div className="h-full overflow-auto rounded-xl bg-[#e7e9ee] px-6 pb-8 pt-5">
+      <DashboardHeader
+        title="Dashboard"
+        subtitle="Welcome to Blueprint GIS Dashboard"
+      />
+
+      <DashboardTabs
+        tabs={dashboardTabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {activeTab === 'Overview' && (
+        <>
+          <KpiGrid cards={kpiCards} />
+          <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
+            <NotificationsPanel items={notifications} />
+            <ComplianceAlertsPanel items={complianceAlerts} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'Reports' && (
+        <>
+          <ReportsFilters />
+          <div className="mt-4">
+            <AnalyticsPanel />
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr]">
+            <BudgetAllocationCard bars={budgetBars} />
+            <PermitDistributionCard data={permitBreakdown} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'Map Insights' && (
+        <>
+          <ReportsFilters />
+          <div className="mt-4">
+            <AnalyticsPanel />
+          </div>
+        </>
+      )}
     </div>
   );
 };

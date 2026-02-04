@@ -1,8 +1,9 @@
 // File: src/services/legislationService.js
 // API service for legislation management
-// Replace the mock implementations with actual API calls when backend is ready
 
-const API_BASE_URL = '/api/v1'; // Update this with your actual API base URL
+import gisScheduleService from './gisScheduleService';
+
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api/v1`;
 
 // Mock GIS layers data - will be replaced with API
 const mockGISLayers = [
@@ -34,21 +35,45 @@ const legislationService = {
    * @returns {Promise<{data: Array, total: number}>}
    */
   async getAll(params = {}) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations?${new URLSearchParams(params)}`);
-    // return response.json();
-    
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          data: [],
-          total: 0,
-          page: params.page || 1,
-          perPage: params.perPage || 10,
-        });
-      }, 500);
-    });
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.search) queryParams.append('search', params.search);
+      if (params.status) queryParams.append('status', params.status);
+      if (params.type) queryParams.append('type', params.type);
+      if (params.page) queryParams.append('page', params.page);
+      if (params.perPage) queryParams.append('limit', params.perPage);
+
+      const response = await fetch(`${API_BASE_URL}/legislations?${queryParams}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          // Add auth token if available
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        data: result.data || [],
+        total: result.pagination?.total || 0,
+        page: result.pagination?.page || params.page || 1,
+        perPage: result.pagination?.limit || params.perPage || 10,
+      };
+    } catch (error) {
+      console.error('Error fetching legislations:', error);
+      // Return empty data on error to prevent UI crash
+      return {
+        data: [],
+        total: 0,
+        page: params.page || 1,
+        perPage: params.perPage || 10,
+      };
+    }
   },
 
   /**
@@ -57,15 +82,26 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async getById(id) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations/${id}`);
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id, title: 'Mock Legislation' });
-      }, 300);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/legislations/${id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Error fetching legislation:', error);
+      throw error;
+    }
   },
 
   /**
@@ -74,19 +110,29 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async create(data) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id: Date.now(), ...data, createdAt: new Date().toISOString() });
-      }, 500);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/legislations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || `API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Error creating legislation:', error);
+      throw error;
+    }
   },
 
   /**
@@ -96,19 +142,29 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async update(id, data) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations/${id}`, {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data),
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id, ...data, updatedAt: new Date().toISOString() });
-      }, 500);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/legislations/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || `API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Error updating legislation:', error);
+      throw error;
+    }
   },
 
   /**
@@ -117,12 +173,27 @@ const legislationService = {
    * @returns {Promise<void>}
    */
   async delete(id) {
-    // TODO: Replace with actual API call
-    // await fetch(`${API_BASE_URL}/legislations/${id}`, { method: 'DELETE' });
-    
-    return new Promise((resolve) => {
-      setTimeout(resolve, 300);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/legislations/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || `API error: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting legislation:', error);
+      throw error;
+    }
   },
 
   /**
@@ -171,15 +242,26 @@ const legislationService = {
    * @returns {Promise<Array>}
    */
   async getWorkflows() {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/workflows`);
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([]);
-      }, 200);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+      return [];
+    }
   },
 
   /**
@@ -205,28 +287,7 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async uploadGISSchedule(file, metadata = {}) {
-    // TODO: Replace with actual API call
-    // const formData = new FormData();
-    // formData.append('file', file);
-    // Object.entries(metadata).forEach(([key, value]) => {
-    //   formData.append(key, value);
-    // });
-    // const response = await fetch(`${API_BASE_URL}/gis-schedules/upload`, {
-    //   method: 'POST',
-    //   body: formData,
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: Date.now(),
-          filename: file.name,
-          size: file.size,
-          uploadedAt: new Date().toISOString(),
-        });
-      }, 1000);
-    });
+    return gisScheduleService.uploadFile(file, metadata);
   },
 
   /**
@@ -236,19 +297,29 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async publish(id, options = {}) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations/${id}/publish`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(options),
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id, published: true, publishedAt: new Date().toISOString() });
-      }, 500);
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/legislations/${id}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') && {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          })
+        },
+        body: JSON.stringify(options),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || `API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      console.error('Error publishing legislation:', error);
+      throw error;
+    }
   },
 
   // ==========================================
@@ -320,24 +391,7 @@ const legislationService = {
    * @returns {Promise<Array>}
    */
   async getGISScheduleTypes() {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/gis-schedules/types`);
-    // return response.json();
-
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([
-          { value: 'map_schedule', label: 'Map Schedule' },
-          { value: 'zoning_schedule', label: 'Zoning Schedule' },
-          { value: 'land_use', label: 'Land Use Schedule' },
-          { value: 'height_density', label: 'Height & Density Schedule' },
-          { value: 'parking', label: 'Parking Schedule' },
-          { value: 'environmental', label: 'Environmental Schedule' },
-          { value: 'heritage', label: 'Heritage Schedule' },
-          { value: 'urban_design', label: 'Urban Design Schedule' },
-        ]);
-      }, 200);
-    });
+    return gisScheduleService.getScheduleTypes();
   },
 
   /**
@@ -347,23 +401,9 @@ const legislationService = {
    * @returns {Promise<Object>}
    */
   async createGISSchedule(legislationId, scheduleData) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations/${legislationId}/gis-schedules`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(scheduleData),
-    // });
-    // return response.json();
-
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          id: Date.now(),
-          legislationId,
-          ...scheduleData,
-          createdAt: new Date().toISOString(),
-        });
-      }, 500);
+    return gisScheduleService.create({
+      ...scheduleData,
+      legislation_id: legislationId,
     });
   },
 
@@ -373,32 +413,17 @@ const legislationService = {
    * @returns {Promise<Array>}
    */
   async getGISSchedules(legislationId) {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/legislations/${legislationId}/gis-schedules`);
-    // return response.json();
-
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve([]);
-      }, 300);
-    });
+    return gisScheduleService.getByLegislation(legislationId);
   },
 
   /**
    * Delete a GIS schedule
-   * @param {string|number} legislationId - Legislation ID
+   * @param {string|number} legislationId - Legislation ID (not used but kept for API consistency)
    * @param {string|number} scheduleId - Schedule ID
    * @returns {Promise<void>}
    */
   async deleteGISSchedule(legislationId, scheduleId) {
-    // TODO: Replace with actual API call
-    // await fetch(`${API_BASE_URL}/legislations/${legislationId}/gis-schedules/${scheduleId}`, {
-    //   method: 'DELETE',
-    // });
-
-    return new Promise((resolve) => {
-      setTimeout(resolve, 300);
-    });
+    return gisScheduleService.delete(scheduleId);
   },
 
   /**

@@ -103,3 +103,5 @@ Dockerfile*
 
 # Output of 'npm pack'
 *.tgz
+
+.figma/

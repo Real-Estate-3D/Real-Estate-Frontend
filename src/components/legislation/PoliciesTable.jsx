@@ -114,7 +114,7 @@ const PoliciesTable = ({
                 className="hover:bg-gray-50 cursor-pointer"
               >
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer">
+                  <span className="text-sm text-gray-900 hover:text-gray-600 underline cursor-pointer">
                     {policy.name}
                   </span>
                 </td>
@@ -145,7 +145,7 @@ const PoliciesTable = ({
               <select
                 value={pagination.perPage}
                 onChange={(e) => onPerPageChange?.(Number(e.target.value))}
-                className="appearance-none bg-white border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="appearance-none bg-white border border-gray-300 rounded-lg px-3 py-1.5 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>

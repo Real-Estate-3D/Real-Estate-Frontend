@@ -12,6 +12,9 @@ const mockVersionHistory = [
     author: 'John Smith',
     status: 'Published',
     changes: 'Initial version created',
+    originalValue: '-',
+    amendmentValue: 'Initial creation',
+    approvalStatus: 'Approved',
     isCurrent: false,
   },
   {
@@ -21,6 +24,9 @@ const mockVersionHistory = [
     author: 'Sarah Johnson',
     status: 'Published',
     changes: 'Updated setback requirements from 8m to 10m',
+    originalValue: 'Setback: 8m',
+    amendmentValue: 'Setback: 10m',
+    approvalStatus: 'Approved',
     isCurrent: false,
   },
   {
@@ -30,6 +36,9 @@ const mockVersionHistory = [
     author: 'Michael Chen',
     status: 'Published',
     changes: 'Added new workflow requirements for environmental review',
+    originalValue: 'No environmental review',
+    amendmentValue: 'Environmental review required',
+    approvalStatus: 'Approved',
     isCurrent: false,
   },
   {
@@ -39,6 +48,9 @@ const mockVersionHistory = [
     author: 'Emily Davis',
     status: 'Published',
     changes: 'Major revision: Updated height limits, added density provisions',
+    originalValue: 'Height: 25m, Density: 150 units/ha',
+    amendmentValue: 'Height: 35m, Density: 200 units/ha',
+    approvalStatus: 'Approved',
     isCurrent: false,
   },
   {
@@ -48,6 +60,9 @@ const mockVersionHistory = [
     author: 'Robert Wilson',
     status: 'Draft',
     changes: 'Proposed changes to parking requirements',
+    originalValue: 'Parking: 2 spaces/unit',
+    amendmentValue: 'Parking: 1.5 spaces/unit',
+    approvalStatus: 'Pending',
     isCurrent: false,
   },
   {
@@ -57,6 +72,9 @@ const mockVersionHistory = [
     author: 'John Smith',
     status: 'Current',
     changes: 'Current active version with all approved amendments',
+    originalValue: 'Previous consolidated version',
+    amendmentValue: 'Current consolidated version',
+    approvalStatus: 'Approved',
     isCurrent: true,
   },
 ];
@@ -67,8 +85,11 @@ const VersionHistoryModal = ({
   zoningLawName = 'Zoning By-Law Amendment',
   onRestoreVersion,
   onViewVersion,
+  onConsolidateAmendments,
 }) => {
   const [selectedVersion, setSelectedVersion] = useState(null);
+  const [selectedVersions, setSelectedVersions] = useState(new Set());
+  const [isConsolidating, setIsConsolidating] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     perPage: 5,
@@ -92,16 +113,78 @@ const VersionHistoryModal = ({
     onRestoreVersion?.(version);
   }, [onRestoreVersion]);
 
+  // Checkbox selection handlers
+  const handleToggleVersion = useCallback((versionId) => {
+    setSelectedVersions(prev => {
+      const next = new Set(prev);
+      if (next.has(versionId)) {
+        next.delete(versionId);
+      } else {
+        next.add(versionId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const selectableVersions = paginatedVersions.filter(v => !v.isCurrent && v.status !== 'Draft');
+    const allSelected = selectableVersions.every(v => selectedVersions.has(v.id));
+
+    if (allSelected) {
+      // Deselect all
+      setSelectedVersions(prev => {
+        const next = new Set(prev);
+        selectableVersions.forEach(v => next.delete(v.id));
+        return next;
+      });
+    } else {
+      // Select all
+      setSelectedVersions(prev => {
+        const next = new Set(prev);
+        selectableVersions.forEach(v => next.add(v.id));
+        return next;
+      });
+    }
+  }, [paginatedVersions, selectedVersions]);
+
+  const handleConsolidateAmendments = useCallback(async () => {
+    if (selectedVersions.size < 2) return;
+
+    setIsConsolidating(true);
+    try {
+      await onConsolidateAmendments?.(Array.from(selectedVersions));
+      setSelectedVersions(new Set());
+    } finally {
+      setIsConsolidating(false);
+    }
+  }, [selectedVersions, onConsolidateAmendments]);
+
+  const selectableVersions = paginatedVersions.filter(v => !v.isCurrent && v.status !== 'Draft');
+  const isAllSelected = selectableVersions.length > 0 && selectableVersions.every(v => selectedVersions.has(v.id));
+
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
       case 'current':
         return 'bg-green-100 text-green-700';
       case 'published':
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-gray-100 text-gray-700';
       case 'draft':
         return 'bg-yellow-100 text-yellow-700';
       case 'archived':
         return 'bg-gray-100 text-gray-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getApprovalColor = (approval) => {
+    switch (approval?.toLowerCase()) {
+      case 'approved':
+        return 'bg-green-100 text-green-700';
+      case 'pending':
+        return 'bg-amber-100 text-amber-700';
+      case 'rejected':
+        return 'bg-red-100 text-red-700';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -175,20 +258,28 @@ const VersionHistoryModal = ({
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
+                  <th scope="col" className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                    />
+                  </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Version
+                    User
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                    Author
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    Original
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                    Changes
+                    Amendment
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Approval
                   </th>
                   <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -196,16 +287,27 @@ const VersionHistoryModal = ({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedVersions.map((version) => (
+                {paginatedVersions.map((version) => {
+                  const isSelectable = !version.isCurrent && version.status !== 'Draft';
+                  return (
                   <tr
                     key={version.id}
                     className={`hover:bg-gray-50 transition-colors ${
-                      selectedVersion?.id === version.id ? 'bg-blue-50' : ''
+                      selectedVersion?.id === version.id ? 'bg-gray-100' : ''
                     } ${version.isCurrent ? 'bg-green-50/50' : ''}`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedVersions.has(version.id)}
+                        onChange={() => handleToggleVersion(version.id)}
+                        disabled={!isSelectable}
+                        className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{version.version}</span>
+                        <span className="text-sm font-medium text-gray-900">{version.author}</span>
                         {version.isCurrent && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
                             <Check className="w-3 h-3" />
@@ -223,18 +325,20 @@ const VersionHistoryModal = ({
                         })}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
-                      <span className="text-sm text-gray-600">{version.author}</span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(version.status)}`}>
-                        {version.status}
-                      </span>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <p className="text-sm text-gray-500 truncate max-w-[140px]" title={version.originalValue}>
+                        {version.originalValue || '-'}
+                      </p>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <p className="text-sm text-gray-600 truncate max-w-xs" title={version.changes}>
-                        {version.changes}
+                      <p className="text-sm font-medium text-gray-900 truncate max-w-[140px]" title={version.amendmentValue}>
+                        {version.amendmentValue || '-'}
                       </p>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getApprovalColor(version.approvalStatus)}`}>
+                        {version.approvalStatus || '-'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -249,7 +353,7 @@ const VersionHistoryModal = ({
                         {!version.isCurrent && version.status !== 'Draft' && (
                           <button
                             onClick={() => handleRestoreVersion(version)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
                             title="Restore this version"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
@@ -259,7 +363,8 @@ const VersionHistoryModal = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -308,7 +413,21 @@ const VersionHistoryModal = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-4 sm:px-6 py-4 border-t border-gray-200 shrink-0">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-t border-gray-200 shrink-0">
+          <div className="flex items-center gap-2">
+            {selectedVersions.size >= 2 && (
+              <button
+                onClick={handleConsolidateAmendments}
+                disabled={isConsolidating}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isConsolidating ? 'Consolidating...' : `Consolidate Amendments (${selectedVersions.size})`}
+              </button>
+            )}
+            {selectedVersions.size === 1 && (
+              <span className="text-sm text-gray-500">Select at least 2 versions to consolidate</span>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"

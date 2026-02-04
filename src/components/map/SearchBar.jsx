@@ -4,9 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Search, X, MapPin, Building2, Loader2, Landmark } from 'lucide-react';
 import { useParcelSearch } from '../../hooks/useParcelSearch';
 import { useMunicipalitySearch } from '../../hooks/useMunicipalitySearch';
-// import { NOMINATIM_SEARCH_URL } from '../../utils/runtimeConfig';
-
-const NOMINATIM_SEARCH_URL = import.meta.env.VITE_NOMINATIM_SEARCH_URL;
+import { NOMINATIM_SEARCH_URL } from '../../utils/runtimeConfig';
 
 // Memoized search result item to prevent re-renders
 const PlaceResultItem = memo(({ suggestion, onSelect }) => (
@@ -37,7 +35,7 @@ const ParcelResultItem = memo(({ parcel, onSelect }) => (
     className="w-full px-4 py-2.5 text-left hover:bg-blue-50 transition-colors group"
   >
     <div className="flex items-start gap-2.5">
-      <Building2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+      <Building2 className="w-3.5 h-3.5 text-green-600 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-800 truncate group-hover:text-blue-600">
           {parcel.displayName}
@@ -63,19 +61,19 @@ ParcelResultItem.displayName = 'ParcelResultItem';
 const MunicipalityResultItem = memo(({ municipality, onSelect }) => (
   <button
     onClick={() => onSelect(municipality)}
-    className="w-full px-4 py-2.5 text-left hover:bg-purple-50 transition-colors group"
+    className="w-full px-4 py-2.5 text-left hover:bg-indigo-50 transition-colors group"
   >
     <div className="flex items-start gap-2.5">
-      <Landmark className="w-3.5 h-3.5 text-purple-500 mt-0.5 shrink-0" />
+      <Landmark className="w-3.5 h-3.5 text-indigo-600 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-800 truncate group-hover:text-purple-600">
           {municipality.name}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-            municipality.type === 'UpperTier' 
+            municipality.type === 'upper_tier' 
               ? 'bg-orange-100 text-orange-700' 
-              : municipality.type === 'LowerTier'
+              : municipality.type === 'lower_tier'
               ? 'bg-blue-100 text-blue-700'
               : 'bg-green-100 text-green-700'
           }`}>
@@ -96,7 +94,7 @@ MunicipalityResultItem.displayName = 'MunicipalityResultItem';
 
 // Section header component
 const SectionHeader = memo(({ icon: Icon, title, count, color }) => (
-  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100">
+  <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border-b border-gray-100">
     <Icon className={`w-3.5 h-3.5 ${color}`} />
     <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{title}</span>
     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
@@ -292,7 +290,7 @@ const SearchBar = memo(({ onLocationSelect, onParcelSelect, onMunicipalitySelect
   return (
     <div ref={searchRef} className="relative pointer-events-auto">
       {/* Search Input */}
-      <div className="bg-white rounded-xl shadow-md px-4 py-2.5 min-w-80">
+      <div className="bg-white rounded-lg shadow-md px-4 py-2.5 min-w-80">
         <div className="flex items-center gap-2.5">
           <Search className="w-4 h-4 text-gray-400 shrink-0" />
           <input
@@ -300,7 +298,7 @@ const SearchBar = memo(({ onLocationSelect, onParcelSelect, onMunicipalitySelect
             value={query}
             onChange={handleInputChange}
             onFocus={handleFocus}
-            placeholder="Search parcels, municipalities, addresses..."
+            placeholder="Search"
             className="bg-transparent flex-1 text-sm text-gray-700 placeholder-gray-400 focus:outline-none"
           />
           {query && (
@@ -319,7 +317,7 @@ const SearchBar = memo(({ onLocationSelect, onParcelSelect, onMunicipalitySelect
 
       {/* Dropdown - Single scrollable list with sections */}
       {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden z-50 animate-fade-in-up">
           <div className="max-h-80 overflow-y-auto">
             
             {/* Loading state */}

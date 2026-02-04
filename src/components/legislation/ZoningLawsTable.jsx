@@ -1,7 +1,47 @@
 // File: src/components/legislation/ZoningLawsTable.jsx
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Trash2, Copy } from 'lucide-react';
+
+// Skeleton row component for loading state
+const SkeletonRow = () => (
+  <tr className="animate-pulse">
+    <td className="px-4 py-3">
+      <div className="w-4 h-4 bg-gray-200 rounded skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-4 bg-gray-200 rounded w-52 skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-4 bg-gray-200 rounded w-20 skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-4 bg-gray-200 rounded w-28 skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-4 bg-gray-200 rounded w-24 skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-6 bg-gray-200 rounded-full w-20 skeleton" />
+    </td>
+    <td className="px-4 py-3">
+      <div className="flex items-center justify-end gap-2">
+        <div className="h-4 bg-gray-200 rounded w-12 skeleton" />
+        <div className="h-4 bg-gray-200 rounded w-10 skeleton" />
+        <div className="h-4 bg-gray-200 rounded w-16 skeleton" />
+      </div>
+    </td>
+  </tr>
+);
+
+const validityStyles = {
+  Active: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
+  Valid: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
+  Expired: 'bg-red-100 text-red-700 ring-1 ring-red-200',
+  Pending: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200',
+  Draft: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+  Superseded: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200',
+};
 
 const ZoningLawsTable = ({
   data,
@@ -11,6 +51,8 @@ const ZoningLawsTable = ({
   onRowClick,
   onEdit,
   onDelete,
+  onDuplicate,
+  isLoading = false,
 }) => {
   const { page, perPage, total } = pagination;
   const totalPages = Math.ceil(total / perPage);
@@ -55,12 +97,12 @@ const ZoningLawsTable = ({
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 sticky top-0">
+          <thead className="bg-[#ECECF4] sticky top-0">
             <tr>
               <th scope="col" className="w-10 px-4 py-3">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                 />
               </th>
               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -76,7 +118,7 @@ const ZoningLawsTable = ({
                 Effective date
               </th>
               <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Validity
+                Validation
               </th>
               <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -84,7 +126,20 @@ const ZoningLawsTable = ({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedData.map((item) => (
+            {isLoading ? (
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <SkeletonRow key={i} />
+                ))}
+              </>
+            ) : paginatedData.length === 0 ? (
+              <tr>
+                <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                  No zoning laws found
+                </td>
+              </tr>
+            ) : (
+              paginatedData.map((item) => (
               <tr
                 key={item.id}
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -93,11 +148,11 @@ const ZoningLawsTable = ({
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">
+                  <span className="text-sm font-medium text-gray-900 hover:text-gray-600 hover:underline">
                     {item.title}
                   </span>
                 </td>
@@ -110,8 +165,10 @@ const ZoningLawsTable = ({
                 <td className="px-4 py-3 text-sm text-gray-600">
                   {item.effectiveFrom}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-600">
-                  {item.validityStatus}
+                <td className="px-4 py-3">
+                  <span className="text-sm text-gray-600" title={item.validationMessage || item.validityStatus}>
+                    {item.validationMessage || item.validityStatus || '-'}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-2">
@@ -123,15 +180,23 @@ const ZoningLawsTable = ({
                     </button>
                     <button
                       onClick={() => onRowClick?.(item)}
-                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 font-medium transition-colors"
+                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 font-medium transition-colors"
                     >
                       <Pencil className="w-3 h-3" />
                       Edit
                     </button>
+                    <button
+                      onClick={() => onDuplicate?.(item)}
+                      className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 font-medium transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Duplicate
+                    </button>
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>
@@ -186,7 +251,7 @@ const ZoningLawsTable = ({
             <select
               value={perPage}
               onChange={(e) => onPerPageChange(Number(e.target.value))}
-              className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-2 py-1 text-sm text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>

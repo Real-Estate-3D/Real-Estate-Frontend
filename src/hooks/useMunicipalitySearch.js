@@ -2,19 +2,12 @@
 // Custom hook for municipality search using WFS with CQL filter
 
 import { useState, useRef, useCallback } from 'react';
-// import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
-
-const GEOSERVER_CONFIG = {
-  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
-  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
-  wmsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wms`,
-  wfsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wfs`,
-  srs: "EPSG:4326",
-};
+import { GEOSERVER_CONFIG } from '../utils/runtimeConfig';
+import { LAYER_NAMES } from '../utils/geoServerLayerManager';
 
 const GEOSERVER_WFS_URL = GEOSERVER_CONFIG.wfsUrl;
 const WORKSPACE = GEOSERVER_CONFIG.workspace;
-const LAYER_NAME = 'view_municipalities';
+const LAYER_NAME = LAYER_NAMES.ALL_MUNICIPALITIES;
 const MAX_RESULTS = 5;
 
 export const useMunicipalitySearch = () => {
@@ -82,9 +75,9 @@ export const useMunicipalitySearch = () => {
         geometry: feature.geometry,
         // Extract municipality info
         name: extractMunicipalityName(feature.properties),
-        type: feature.properties?.type || feature.properties?.TYPE || feature.properties?.muni_type || 'SingleTier',
+        type: feature.properties?.tier_type || feature.properties?.type || feature.properties?.TYPE || feature.properties?.muni_type || 'single_tier',
         population: feature.properties?.population || feature.properties?.POPULATION || null,
-        region: feature.properties?.region || feature.properties?.county || feature.properties?.upper_tier || '',
+        region: feature.properties?.parent_name || feature.properties?.region || feature.properties?.county || feature.properties?.upper_tier || '',
         bbox: feature.bbox || calculateBbox(feature.geometry),
         // Calculate centroid for flying
         centroid: calculateCentroid(feature.geometry)

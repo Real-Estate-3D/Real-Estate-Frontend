@@ -14,20 +14,9 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import {
   fetchGeoServerLayers,
   filterLayersByMunicipality,
+  LAYER_NAMES,
 } from "../../utils/geoServerLayerManager";
-// import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
-
-const CESIUM_ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN;
-
-const GEOSERVER_CONFIG = {
-  baseUrl: import.meta.env.VITE_GEOSERVER_BASE_URL,
-  workspace: import.meta.env.VITE_GEOSERVER_WORKSPACE,
-  wmsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wms`,
-  wfsUrl: `${import.meta.env.VITE_GEOSERVER_BASE_URL}/${import.meta.env.VITE_GEOSERVER_WORKSPACE}/wfs`,
-  srs: "EPSG:4326",
-};
-
-console.log("GEOSERVER_CONFIG:", GEOSERVER_CONFIG);
+import { CESIUM_ION_TOKEN, GEOSERVER_CONFIG } from "../../utils/runtimeConfig";
 
 if (CESIUM_ION_TOKEN) {
   Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
@@ -42,27 +31,25 @@ if (CESIUM_ION_TOKEN) {
 // CQL Filters for tier-based municipality visibility
 const CQL_FILTERS = {
   // Initial view: Show only UpperTier and SingleTier municipalities
-  INITIAL: "type IN ('UpperTier', 'SingleTier')",
+  INITIAL: "tier_type IN ('upper_tier', 'single_tier')",
   // Show all municipalities
   ALL: null,
-  // Show ONLY LowerTier children of a specific UpperTier region (by parent_id)
-  // This hides the UpperTier itself and shows only its LowerTier children
-  regionDrillDown: (parentId) =>
-    `type = 'LowerTier' AND parent_id = '${parentId}'`,
+  // Show children of a specific municipality using both parent_id and tier_type
+  regionDrillDown: (municipalityId) => `tier_type = 'lower_tier' AND parent_id = '${municipalityId}'`,
 };
 
 const MUNICIPALITY_CONFIG = {
-  "simcoe county": { lat: 44.4, lon: -79.7, height: 150000, type: "UpperTier" },
-  toronto: { lat: 43.7, lon: -79.4, height: 80000, type: "SingleTier" },
-  midland: { lat: 44.75, lon: -79.88, height: 25000, type: "LowerTier" },
+  "simcoe county": { lat: 44.4, lon: -79.7, height: 150000, type: "upper_tier" },
+  toronto: { lat: 43.7, lon: -79.4, height: 80000, type: "single_tier" },
+  midland: { lat: 44.75, lon: -79.88, height: 25000, type: "lower_tier" },
   "adjala-tosorontio": {
     lat: 44.15,
     lon: -79.95,
     height: 35000,
-    type: "LowerTier",
+    type: "lower_tier",
   },
-  barrie: { lat: 44.37, lon: -79.69, height: 30000, type: "LowerTier" },
-  orillia: { lat: 44.61, lon: -79.42, height: 25000, type: "LowerTier" },
+  barrie: { lat: 44.37, lon: -79.69, height: 30000, type: "lower_tier" },
+  orillia: { lat: 44.61, lon: -79.42, height: 25000, type: "lower_tier" },
 };
 
 const INITIAL_CAMERA = {
@@ -76,8 +63,8 @@ const INITIAL_CAMERA = {
 
 const VIEW_LEVELS = {
   OVERVIEW: "overview", // High altitude - see all regions
-  REGION: "region", // UpperTier - see LowerTier municipalities
-  MUNICIPALITY: "municipality", // SingleTier or LowerTier - see parcels
+  REGION: "region", // upper_tier - see lower_tier municipalities
+  MUNICIPALITY: "municipality", // single_tier or lower_tier - see parcels
   PARCEL: "parcel", // Individual parcel selected
 };
 
@@ -95,6 +82,12 @@ const CesiumMap = forwardRef(
     const [viewLevel, setViewLevel] = useState(VIEW_LEVELS.OVERVIEW);
     const [currentRegion, setCurrentRegion] = useState(null);
     const [viewHierarchy, setViewHierarchy] = useState([]);
+    
+    // Measurement state ref
+    const measurementStateRef = useRef(null);
+
+    // Polygon drawing state ref
+    const polygonDrawingStateRef = useRef(null);
 
     // Refs to hold latest values for use in click handler without causing re-initialization
     const viewLevelRef = useRef(viewLevel);
@@ -116,8 +109,8 @@ const CesiumMap = forwardRef(
           service: "WMS",
           version: "1.1.1",
           request: "GetFeatureInfo",
-          layers: `${GEOSERVER_CONFIG.workspace}:view_municipalities`,
-          query_layers: `${GEOSERVER_CONFIG.workspace}:view_municipalities`,
+          layers: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ALL_MUNICIPALITIES}`,
+          query_layers: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ALL_MUNICIPALITIES}`,
           info_format: "application/json",
           bbox: bbox,
           width: 101,
@@ -159,8 +152,9 @@ const CesiumMap = forwardRef(
 
             const props = feature.properties;
 
-            // Extract name and type
+            // Extract name and type from new schema
             const name =
+              props.admin_name ||
               props.name ||
               props.municipal_name ||
               props.mun_name ||
@@ -168,20 +162,24 @@ const CesiumMap = forwardRef(
               props.NAME ||
               Object.values(props)[0];
             const type =
-              props.type || props.TYPE || props.muni_type || "SingleTier";
-            const id = props.id || props.ID;
+              props.tier_type || props.type || props.TYPE || props.muni_type || "single_tier";
+            
+            // Get ID - in boundaries_all_municipalities view, the column is called municipality_id for all tier types
+            const id = props.municipality_id || props.admin_id || props.id || props.ID;
+            console.log(`${type} ID extracted: ${id}, from props:`, props);
 
             // If geometry is not included, fetch it via WFS
             let geometry = feature.geometry;
-            if (!geometry && id) {
+            if (!geometry && id && name) {
               try {
+                // Use admin_name for filtering since it's more reliable
                 const wfsParams = new URLSearchParams({
                   service: "WFS",
                   version: "1.1.0",
                   request: "GetFeature",
-                  typeName: `${GEOSERVER_CONFIG.workspace}:view_municipalities`,
+                  typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ALL_MUNICIPALITIES}`,
                   outputFormat: "application/json",
-                  CQL_FILTER: `id = '${id}'`,
+                  CQL_FILTER: `admin_name = '${name.replace(/'/g, "''")}'`,
                   srsName: GEOSERVER_CONFIG.srs,
                 });
                 const wfsUrl = `${
@@ -191,6 +189,7 @@ const CesiumMap = forwardRef(
                 const wfsData = await wfsResponse.json();
                 if (wfsData.features && wfsData.features.length > 0) {
                   geometry = wfsData.features[0].geometry;
+                  console.log(`Fetched geometry via WFS for: ${name}`);
                 }
               } catch (wfsError) {
                 console.warn("Failed to fetch geometry via WFS:", wfsError);
@@ -261,6 +260,316 @@ const CesiumMap = forwardRef(
       }
     }, []);
 
+    // Helper to convert GeoJSON geometry to WKT for CQL filters
+    const convertGeoJSONToWKT = useCallback((geometry) => {
+      if (!geometry || !geometry.type || !geometry.coordinates) {
+        return null;
+      }
+
+      const coordsToWKT = (coords) => {
+        return coords.map(c => `${c[0]} ${c[1]}`).join(', ');
+      };
+
+      switch (geometry.type) {
+        case 'Point':
+          return `POINT(${geometry.coordinates[0]} ${geometry.coordinates[1]})`;
+        
+        case 'Polygon':
+          const rings = geometry.coordinates.map(ring => 
+            `(${coordsToWKT(ring)})`
+          ).join(', ');
+          return `POLYGON(${rings})`;
+        
+        case 'MultiPolygon':
+          const polygons = geometry.coordinates.map(polygon => {
+            const polyRings = polygon.map(ring => `(${coordsToWKT(ring)})`).join(', ');
+            return `(${polyRings})`;
+          }).join(', ');
+          return `MULTIPOLYGON(${polygons})`;
+        
+        default:
+          console.warn(`Unsupported geometry type for WKT conversion: ${geometry.type}`);
+          return null;
+      }
+    }, []);
+
+    // Fetch a single parcel feature via WFS using a point intersection
+    // Utility: approximate squared distance (deg space) between two lon/lat points
+    const squaredDistanceDeg = (lon1, lat1, lon2, lat2) => {
+      const dx = lon1 - lon2;
+      const dy = lat1 - lat2;
+      return dx * dx + dy * dy;
+    };
+
+    // Utility: quick centroid for polygon/multipolygon; falls back to first coord
+    const getFeatureCentroid = (geometry) => {
+      if (!geometry || !geometry.coordinates) return null;
+
+      if (geometry.type === "Point") {
+        return geometry.coordinates;
+      }
+
+      // Flatten coordinates for centroid calc
+      let coords = [];
+      if (geometry.type === "Polygon") {
+        coords = geometry.coordinates[0] || [];
+      } else if (geometry.type === "MultiPolygon") {
+        geometry.coordinates.forEach((poly) => {
+          if (poly && poly[0]) {
+            coords = coords.concat(poly[0]);
+          }
+        });
+      }
+
+      if (!coords.length) return null;
+
+      const sum = coords.reduce(
+        (acc, c) => {
+          acc.lon += c[0];
+          acc.lat += c[1];
+          return acc;
+        },
+        { lon: 0, lat: 0 }
+      );
+      return [sum.lon / coords.length, sum.lat / coords.length];
+    };
+
+    const fetchParcelFeatureByPoint = useCallback(async (lat, lon) => {
+      // Try multiple strategies/fields to be resilient to schema or precision issues
+      const geomFields = ["geom", "the_geom"];
+      const srid = (GEOSERVER_CONFIG.srs || "EPSG:4326").replace("EPSG:", "");
+      const pointLiteral = `SRID=${srid};POINT(${lon} ${lat})`;
+      const bufferMeters = 8; // small buffer for precision mismatches
+
+      for (const geomField of geomFields) {
+        const strategies = [
+          // 1) Use DWITHIN with tiny buffer in meters (units supported by GeoServer)
+          `DWITHIN(${geomField}, ${pointLiteral}, ${bufferMeters}, meters)`,
+          // 2) Fallback to WITHIN on a degree buffer (very small)
+          `WITHIN(${geomField}, BUFFER(${pointLiteral}, 0.0001))`,
+          // 3) Last resort: plain INTERSECTS
+          `INTERSECTS(${geomField}, ${pointLiteral})`,
+        ];
+
+        for (const cql of strategies) {
+          const wfsParams = new URLSearchParams({
+            service: "WFS",
+            version: "1.1.0",
+            request: "GetFeature",
+            typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.PARCELS}`,
+            outputFormat: "application/json",
+            srsName: GEOSERVER_CONFIG.srs,
+            maxFeatures: "10",
+            CQL_FILTER: cql,
+          });
+
+          const wfsUrl = `${GEOSERVER_CONFIG.wfsUrl}?${wfsParams.toString()}`;
+
+          try {
+            const response = await fetch(wfsUrl);
+            const data = await response.json();
+
+            if (data.features && data.features.length > 0) {
+              // Pick the feature whose centroid is closest to the click
+              let best = null;
+              let bestDist = Infinity;
+              data.features.forEach((feature) => {
+                const centroid = getFeatureCentroid(feature.geometry);
+                if (centroid) {
+                  const d = squaredDistanceDeg(centroid[0], centroid[1], lon, lat);
+                  if (d < bestDist) {
+                    bestDist = d;
+                    best = feature;
+                  }
+                } else if (!best) {
+                  best = feature;
+                }
+              });
+
+              if (best) {
+                return {
+                  geometry: best.geometry,
+                  properties: best.properties,
+                  bbox: best.bbox,
+                  id: best.id,
+                  geomField,
+                  strategy: cql,
+                };
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching parcel via WFS (${geomField}) with ${cql}:`, error);
+          }
+        }
+
+        // BBOX fallback with tiny envelope around the click (in degrees)
+        const bboxSize = 0.0002;
+        const bboxParams = new URLSearchParams({
+          service: "WFS",
+          version: "1.1.0",
+          request: "GetFeature",
+          typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.PARCELS}`,
+          outputFormat: "application/json",
+          srsName: GEOSERVER_CONFIG.srs,
+          maxFeatures: "1",
+          bbox: `${lon - bboxSize},${lat - bboxSize},${lon + bboxSize},${lat + bboxSize},${GEOSERVER_CONFIG.srs}`,
+        });
+
+        const bboxUrl = `${GEOSERVER_CONFIG.wfsUrl}?${bboxParams.toString()}`;
+        try {
+          const response = await fetch(bboxUrl);
+          const data = await response.json();
+          if (data.features && data.features.length > 0) {
+            let best = null;
+            let bestDist = Infinity;
+            data.features.forEach((feature) => {
+              const centroid = getFeatureCentroid(feature.geometry);
+              if (centroid) {
+                const d = squaredDistanceDeg(centroid[0], centroid[1], lon, lat);
+                if (d < bestDist) {
+                  bestDist = d;
+                  best = feature;
+                }
+              } else if (!best) {
+                best = feature;
+              }
+            });
+
+            if (best) {
+              return {
+                geometry: best.geometry,
+                properties: best.properties,
+                bbox: best.bbox,
+                id: best.id,
+                geomField,
+                strategy: "bbox fallback",
+              };
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching parcel via WFS bbox fallback (${geomField}):`, error);
+        }
+      }
+
+      return null;
+    }, []);
+
+    // Query multiple layers for parcel information and combine the data
+    const queryParcelWithRelatedData = useCallback(async (lat, lon, parcelGeometry) => {
+      console.log("Querying parcel and related data...");
+      
+      // First, get parcel, zoning, and land use via WMS (same location query)
+      const [parcelData, zoningData, landUseData] = await Promise.all([
+        queryFeatureInfo(lat, lon, LAYER_NAMES.PARCELS),
+        queryFeatureInfo(lat, lon, LAYER_NAMES.ZONING),
+        queryFeatureInfo(lat, lon, LAYER_NAMES.LAND_USE),
+      ]);
+
+      // Fetch full parcel geometry via WFS for accurate highlighting
+      let parcelWfsData = null;
+      try {
+        parcelWfsData = await fetchParcelFeatureByPoint(lat, lon);
+      } catch (error) {
+        console.error("Error fetching parcel via WFS:", error);
+      }
+
+      // For address points, use WFS with spatial intersection if we have parcel geometry
+      let addressData = null;
+      const parcelGeometryForIntersection = parcelWfsData?.geometry || parcelData?.geometry;
+      if (parcelGeometryForIntersection) {
+        try {
+          console.log("Querying address point within parcel via WFS...");
+          
+          // Build WFS query with INTERSECTS filter
+          const geometryWKT = convertGeoJSONToWKT(parcelGeometryForIntersection);
+          const wfsParams = new URLSearchParams({
+            service: "WFS",
+            version: "1.1.0",
+            request: "GetFeature",
+            typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ADDRESS_POINTS}`,
+            outputFormat: "application/json",
+            srsName: GEOSERVER_CONFIG.srs,
+            maxFeatures: "1",
+          });
+          
+          // Add CQL filter for spatial intersection
+          wfsParams.append("CQL_FILTER", `INTERSECTS(geom, ${geometryWKT})`);
+          
+          const wfsUrl = `${GEOSERVER_CONFIG.wfsUrl}?${wfsParams.toString()}`;
+          console.log("Address WFS query:", wfsUrl);
+          
+          const response = await fetch(wfsUrl);
+          const data = await response.json();
+          
+          if (data.features && data.features.length > 0) {
+            addressData = {
+              geometry: data.features[0].geometry,
+              properties: data.features[0].properties,
+            };
+            console.log("Found address point:", addressData.properties);
+          } else {
+            console.log("No address point found within parcel");
+          }
+        } catch (error) {
+          console.error("Error querying address point:", error);
+        }
+      } else {
+        console.log("No parcel geometry available for address point query");
+      }
+
+      // Combine all the data
+      const parcelProps = parcelWfsData?.properties || parcelData?.properties || {};
+      const combinedProperties = {
+        // Parcel information (primary)
+        ...parcelProps,
+        
+        // Zoning information (prefixed)
+        ...(zoningData?.properties && Object.fromEntries(
+          Object.entries(zoningData.properties)
+            .filter(([key]) => !key.startsWith('_'))
+            .map(([key, value]) => [`zoning_${key}`, value])
+        )),
+        
+        // Land use information (prefixed)
+        ...(landUseData?.properties && Object.fromEntries(
+          Object.entries(landUseData.properties)
+            .filter(([key]) => !key.startsWith('_'))
+            .map(([key, value]) => [`land_use_${key}`, value])
+        )),
+        
+        // Address point information (prefixed)
+        ...(addressData?.properties && Object.fromEntries(
+          Object.entries(addressData.properties)
+            .filter(([key]) => !key.startsWith('_'))
+            .map(([key, value]) => [`address_${key}`, value])
+        )),
+        
+        // Metadata
+        _layerName: parcelWfsData ? "Parcel (WFS + related)" : "Parcel (Combined)",
+        _coordinates: `${lat.toFixed(6)}, ${lon.toFixed(6)}`,
+        _featureType: (parcelWfsData?.geometry || parcelData?.geometry || parcelGeometry)?.type || "Polygon",
+        _dataLayers: [
+          parcelWfsData && "",
+          parcelData && "",
+          zoningData && "",
+          landUseData && "",
+          addressData && ""
+        ].filter(Boolean).join(", "),
+      };
+
+      console.log("Combined parcel data:", {
+        parcel: !!parcelData || !!parcelWfsData,
+        zoning: !!zoningData,
+        landUse: !!landUseData,
+        address: !!addressData,
+      });
+
+      return {
+        geometry: parcelWfsData?.geometry || parcelData?.geometry || parcelGeometry,
+        properties: combinedProperties,
+      };
+    }, [fetchParcelFeatureByPoint, queryFeatureInfo, convertGeoJSONToWKT]);
+
     // Function to update municipality layer with new CQL filter
     const updateMunicipalityLayerFilter = useCallback((cqlFilter) => {
       if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
@@ -270,7 +579,7 @@ const CesiumMap = forwardRef(
 
       // Find the municipalities layer in our ref
       const layerIndex = layersRef.current.findIndex(
-        (l) => l.config.name === "view_municipalities"
+        (l) => l.config.name === LAYER_NAMES.ALL_MUNICIPALITIES
       );
       if (layerIndex === -1) {
         console.warn("Municipality layer not found in layersRef");
@@ -311,6 +620,11 @@ const CesiumMap = forwardRef(
         parameters,
         enablePickFeatures: true,
       });
+      
+      // Debug: Log the WMS request details
+      console.log(`WMS Layer: ${GEOSERVER_CONFIG.workspace}:${config.name}`);
+      console.log(`WMS URL: ${GEOSERVER_CONFIG.wmsUrl}`);
+      console.log(`CQL Filter: ${parameters.CQL_FILTER || 'none'}`);
 
       // Add the new layer - use the Cesium layer index if we found it
       const cesiumLayer =
@@ -328,12 +642,44 @@ const CesiumMap = forwardRef(
       console.log(
         `Municipality layer CQL filter updated: ${
           cqlFilter || "none"
-        }, visible: ${cesiumLayer.show}`
+        }, visible: ${cesiumLayer.show}, alpha: ${cesiumLayer.alpha}`
       );
+      
+      // Force scene to render with new layer and invalidate tile cache
+      if (viewer && !viewer.isDestroyed()) {
+        // Invalidate all tiles to force reload with new filter
+        if (cesiumLayer.imageryProvider && cesiumLayer.imageryProvider._reload) {
+          cesiumLayer.imageryProvider._reload();
+        }
+        viewer.scene.requestRender();
+        // Additional render request after a short delay to ensure tiles are fetched
+        setTimeout(() => {
+          if (viewer && !viewer.isDestroyed()) {
+            viewer.scene.requestRender();
+          }
+        }, 100);
+      }
+      
+      // Test: Query GeoServer to verify the filter returns features
+      if (cqlFilter) {
+        const testUrl = `${GEOSERVER_CONFIG.wfsUrl}?service=WFS&version=1.1.0&request=GetFeature&typeName=${GEOSERVER_CONFIG.workspace}:${config.name}&outputFormat=application/json&CQL_FILTER=${encodeURIComponent(cqlFilter)}&maxFeatures=10`;
+        console.log('Testing WFS query:', testUrl);
+        fetch(testUrl)
+          .then(r => r.json())
+          .then(data => {
+            console.log(`WFS Test Result: Found ${data.features?.length || 0} features with filter: ${cqlFilter}`);
+            if (data.features && data.features.length > 0) {
+              console.log('Sample features:', data.features.map(f => f.properties?.admin_name || f.properties?.name).slice(0, 5));
+            } else {
+              console.warn('⚠️ NO FEATURES RETURNED - Check if parent_name matches exactly in database!');
+            }
+          })
+          .catch(e => console.error('WFS test failed:', e));
+      }
     }, []);
 
-    // Function to update parcels layer with CQL filter based on division_id
-    const updateParcelsLayerFilter = useCallback((divisionId) => {
+    // Function to update parcels layer with CQL filter based on municipality ID
+    const updateParcelsLayerFilter = useCallback((municipalityId) => {
       if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
 
       const viewer = viewerRef.current;
@@ -341,7 +687,7 @@ const CesiumMap = forwardRef(
 
       // Find the parcels layer
       const layerIndex = layersRef.current.findIndex(
-        (l) => l.config.name === "view_parcels"
+        (l) => l.config.name === LAYER_NAMES.PARCELS
       );
       if (layerIndex === -1) {
         console.warn("Parcels layer not found");
@@ -356,7 +702,7 @@ const CesiumMap = forwardRef(
         imageryLayers.remove(layerEntry.cesiumLayer, false);
       }
 
-      // Create new provider with CQL filter for division_id
+      // Create new provider with CQL filter for municipality
       const parameters = {
         service: "WMS",
         version: "1.1.1",
@@ -367,12 +713,12 @@ const CesiumMap = forwardRef(
         styles: "",
       };
 
-      // Add CQL_FILTER if divisionId is provided
-      // UUID needs to be quoted as a string
-      if (divisionId) {
-        parameters.CQL_FILTER = `division_id = '${divisionId}'`;
+      // Add CQL_FILTER if municipalityId is provided
+      // Note: Parcels can have either lower_tier_id or single_tier_id
+      if (municipalityId) {
+        parameters.CQL_FILTER = `(lower_tier_id = '${municipalityId}' OR single_tier_id = '${municipalityId}')`;
         console.log(
-          `Applying parcels CQL filter: division_id = '${divisionId}'`
+          `Applying parcels CQL filter for municipality: ${municipalityId}`
         );
       }
 
@@ -389,19 +735,19 @@ const CesiumMap = forwardRef(
         layerIndex
       );
       cesiumLayer.alpha = config.opacity;
-      cesiumLayer.show = divisionId ? true : false; // Show only when filtered
+      cesiumLayer.show = municipalityId ? true : false; // Show only when filtered
 
       // Update the reference
       layersRef.current[layerIndex] = { config, cesiumLayer, provider };
-      selectedDivisionIdRef.current = divisionId;
+      selectedDivisionIdRef.current = municipalityId;
 
       console.log(
-        `Parcels layer updated with division_id: ${divisionId || "none"}`
+        `Parcels layer updated with municipality_id: ${municipalityId || "none"}`
       );
     }, []);
 
-    // Function to update wards layer with CQL filter based on parent_id (municipality id)
-    const updateWardsLayerFilter = useCallback((parentId, show = true) => {
+    // Function to update wards layer with CQL filter based on municipality ID
+    const updateWardsLayerFilter = useCallback((municipalityId, show = true) => {
       if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
 
       const viewer = viewerRef.current;
@@ -409,7 +755,7 @@ const CesiumMap = forwardRef(
 
       // Find the wards layer
       const layerIndex = layersRef.current.findIndex(
-        (l) => l.config.name === "view_wards"
+        (l) => l.config.name === LAYER_NAMES.WARDS
       );
       if (layerIndex === -1) {
         console.warn("Wards layer not found");
@@ -439,11 +785,10 @@ const CesiumMap = forwardRef(
         styles: "",
       };
 
-      // Add CQL_FILTER using parent_id (the id of the SingleTier municipality)
-      // UUID needs to be quoted as a string
-      if (parentId && show) {
-        parameters.CQL_FILTER = `parent_id = '${parentId}'`;
-        console.log(`Applying wards CQL filter: parent_id = '${parentId}'`);
+      // Add CQL_FILTER using lower_tier_id or single_tier_id
+      if (municipalityId && show) {
+        parameters.CQL_FILTER = `(lower_tier_id = '${municipalityId}' OR single_tier_id = '${municipalityId}')`;
+        console.log(`Applying wards CQL filter for municipality: ${municipalityId}`);
       }
 
       const provider = new Cesium.WebMapServiceImageryProvider({
@@ -460,13 +805,13 @@ const CesiumMap = forwardRef(
           : imageryLayers.addImageryProvider(provider);
 
       cesiumLayer.alpha = config.opacity;
-      cesiumLayer.show = show && parentId ? true : false;
+      cesiumLayer.show = show && municipalityId ? true : false;
 
       // Update the reference
       layersRef.current[layerIndex] = { config, cesiumLayer, provider };
 
       console.log(
-        `Wards layer updated for parent_id: ${parentId || "none"}, visible: ${
+        `Wards layer updated for municipality_id: ${municipalityId || "none"}, visible: ${
           cesiumLayer.show
         }`
       );
@@ -475,11 +820,104 @@ const CesiumMap = forwardRef(
     // Function to hide/show municipalities layer
     const setMunicipalitiesLayerVisible = useCallback((visible) => {
       const layerEntry = layersRef.current.find(
-        (l) => l.config.name === "view_municipalities"
+        (l) => l.config.name === LAYER_NAMES.ALL_MUNICIPALITIES
       );
       if (layerEntry && layerEntry.cesiumLayer) {
         layerEntry.cesiumLayer.show = visible;
         console.log(`Municipalities layer visibility: ${visible}`);
+      }
+    }, []);
+
+    // Function to update lower_tier layer with CQL filter based on upper_tier_id
+    const updateLowerTierLayerFilter = useCallback((cqlFilter, show = true) => {
+      if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+      const viewer = viewerRef.current;
+      const imageryLayers = viewer.imageryLayers;
+
+      // Find the lower_tier layer
+      const layerIndex = layersRef.current.findIndex(
+        (l) => l.config.name === LAYER_NAMES.LOWER_TIER
+      );
+      if (layerIndex === -1) {
+        console.warn("Lower tier layer not found");
+        return;
+      }
+
+      const layerEntry = layersRef.current[layerIndex];
+      const config = layerEntry.config;
+
+      // Find and remove the old layer
+      let cesiumLayerIndex = -1;
+      if (layerEntry.cesiumLayer) {
+        cesiumLayerIndex = imageryLayers.indexOf(layerEntry.cesiumLayer);
+        if (cesiumLayerIndex !== -1) {
+          imageryLayers.remove(layerEntry.cesiumLayer, false);
+        }
+      }
+
+      // Create new provider with CQL filter
+      const parameters = {
+        service: "WMS",
+        version: "1.1.1",
+        format: "image/png",
+        transparent: "true",
+        tiled: "true",
+        tilesOrigin: "-180,-90",
+        styles: "",
+      };
+
+      if (cqlFilter) {
+        parameters.CQL_FILTER = cqlFilter;
+      }
+
+      const provider = new Cesium.WebMapServiceImageryProvider({
+        url: GEOSERVER_CONFIG.wmsUrl,
+        layers: `${GEOSERVER_CONFIG.workspace}:${config.name}`,
+        parameters,
+        enablePickFeatures: true,
+      });
+
+      // Debug logging
+      console.log(`Lower Tier WMS Layer: ${GEOSERVER_CONFIG.workspace}:${config.name}`);
+      console.log(`CQL Filter: ${parameters.CQL_FILTER || 'none'}`);
+
+      // Add the new layer
+      const cesiumLayer =
+        cesiumLayerIndex !== -1
+          ? imageryLayers.addImageryProvider(provider, cesiumLayerIndex)
+          : imageryLayers.addImageryProvider(provider);
+
+      cesiumLayer.alpha = config.opacity;
+      cesiumLayer.show = show;
+
+      // Update the reference
+      layersRef.current[layerIndex] = { config, cesiumLayer, provider };
+
+      console.log(
+        `Lower tier layer updated with filter: ${cqlFilter || "none"}, visible: ${cesiumLayer.show}`
+      );
+
+      // Force render
+      if (viewer && !viewer.isDestroyed()) {
+        viewer.scene.requestRender();
+      }
+
+      // Test WFS query
+      if (cqlFilter) {
+        const testUrl = `${GEOSERVER_CONFIG.wfsUrl}?service=WFS&version=1.1.0&request=GetFeature&typeName=${GEOSERVER_CONFIG.workspace}:${config.name}&outputFormat=application/json&CQL_FILTER=${encodeURIComponent(cqlFilter)}&maxFeatures=10`;
+        console.log('Testing Lower Tier WFS query:', testUrl);
+        fetch(testUrl)
+          .then(r => r.json())
+          .then(data => {
+            console.log(`Lower Tier WFS Result: Found ${data.features?.length || 0} features`);
+            if (data.features && data.features.length > 0) {
+              console.log('Lower tier municipalities:', data.features.map(f => f.properties?.admin_name || f.properties?.name).slice(0, 5));
+            } else {
+              console.warn('⚠️ NO LOWER TIER FEATURES RETURNED');
+            }
+          })
+          .catch(e => console.error('Lower tier WFS test failed:', e));
       }
     }, []);
 
@@ -491,27 +929,29 @@ const CesiumMap = forwardRef(
       layersRef.current.forEach(({ config, cesiumLayer }) => {
         if (!cesiumLayer) return;
 
-        if (tierType === "UpperTier") {
-          // REGION VIEW: Show only municipalities (LowerTier children), NOT wards
+        if (tierType === "upper_tier") {
+          // REGION VIEW: Show only municipalities layer (filtered to children via parent_id)
           if (config.category === "admin") {
-            if (config.name === "view_municipalities") {
-              // Show municipalities layer (filtered to LowerTier children via CQL)
+            if (config.name === LAYER_NAMES.ALL_MUNICIPALITIES) {
+              // Show municipalities layer (will be filtered by parent_id)
               cesiumLayer.show = true;
               cesiumLayer.alpha = config.opacity;
+              console.log(`Showing all_municipalities layer: ${config.name}`);
             } else {
-              // Hide wards and other admin layers for UpperTier
+              // Hide wards and other admin layers
               cesiumLayer.show = false;
             }
           } else {
+            // Hide all non-admin layers
             cesiumLayer.show = false;
           }
-        } else if (tierType === "LowerTier" || tierType === "SingleTier") {
+        } else if (tierType === "lower_tier" || tierType === "single_tier") {
           // MUNICIPALITY VIEW: Show parcels and municipality-specific layers
           if (config.category === "admin") {
             // Keep boundaries visible but dimmed
             cesiumLayer.show = true;
             cesiumLayer.alpha =
-              config.name === "view_municipalities" ? 0.2 : 0.3;
+              config.name === LAYER_NAMES.ALL_MUNICIPALITIES ? 0.2 : 0.3;
           } else if (config.category === "parcels") {
             // Always show parcels at this level
             cesiumLayer.show = true;
@@ -579,8 +1019,8 @@ const CesiumMap = forwardRef(
     ]);
 
     const drillDownToMunicipality = useCallback(
-      (municipalityData) => {
-        const { name, type, id, geometry } = municipalityData;
+      async (municipalityData) => {
+        let { name, type, id, geometry } = municipalityData;
         const normalizedName = name.toLowerCase().trim();
 
         console.log(`Drilling down to: ${name} (Type: ${type})`);
@@ -600,39 +1040,142 @@ const CesiumMap = forwardRef(
             lat: 44.0,
             lon: -79.6,
             height:
-              type === "UpperTier"
+              type === "upper_tier"
                 ? 150000
-                : type === "SingleTier"
+                : type === "single_tier"
                 ? 80000
                 : 35000,
             type: type,
           };
         }
 
+        // If geometry is missing, fetch it via WFS
+        if (!geometry) {
+          try {
+            console.log(`Fetching geometry for: ${name} (${type})`);
+            const wfsParams = new URLSearchParams({
+              service: "WFS",
+              version: "1.1.0",
+              request: "GetFeature",
+              typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ALL_MUNICIPALITIES}`,
+              outputFormat: "application/json",
+              CQL_FILTER: `admin_name = '${name.replace(/'/g, "''")}' AND tier_type = '${type}'`,
+              srsName: GEOSERVER_CONFIG.srs,
+            });
+            const wfsUrl = `${GEOSERVER_CONFIG.wfsUrl}?${wfsParams.toString()}`;
+            const wfsResponse = await fetch(wfsUrl);
+            const wfsData = await wfsResponse.json();
+            if (wfsData.features && wfsData.features.length > 0) {
+              geometry = wfsData.features[0].geometry;
+              console.log(`Fetched geometry for ${name}:`, geometry?.type);
+            }
+          } catch (wfsError) {
+            console.warn("Failed to fetch geometry via WFS:", wfsError);
+          }
+        }
+        
+        // For upper_tier, also fetch the collective bounds of all lower_tier children to fit better
+        if (type === "upper_tier" && !geometry) {
+          try {
+            console.log(`Fetching collective bounds of lower_tier children for: ${name}`);
+            const wfsParams = new URLSearchParams({
+              service: "WFS",
+              version: "1.1.0",
+              request: "GetFeature",
+              typeName: `${GEOSERVER_CONFIG.workspace}:${LAYER_NAMES.ALL_MUNICIPALITIES}`,
+              outputFormat: "application/json",
+              CQL_FILTER: `tier_type = 'lower_tier' AND parent_name = '${name.replace(/'/g, "''")}'`,
+              srsName: GEOSERVER_CONFIG.srs,
+            });
+            const wfsUrl = `${GEOSERVER_CONFIG.wfsUrl}?${wfsParams.toString()}`;
+            const wfsResponse = await fetch(wfsUrl);
+            const wfsData = await wfsResponse.json();
+            
+            if (wfsData.features && wfsData.features.length > 0) {
+              // Calculate collective bounds from all children
+              let minLon = Infinity, maxLon = -Infinity;
+              let minLat = Infinity, maxLat = -Infinity;
+              
+              wfsData.features.forEach(feature => {
+                if (feature.geometry && feature.geometry.coordinates) {
+                  let coords = [];
+                  if (feature.geometry.type === "Polygon") {
+                    coords = feature.geometry.coordinates[0] || [];
+                  } else if (feature.geometry.type === "MultiPolygon") {
+                    feature.geometry.coordinates.forEach(polygon => {
+                      if (polygon && polygon[0]) {
+                        coords = coords.concat(polygon[0]);
+                      }
+                    });
+                  }
+                  
+                  coords.forEach(coord => {
+                    minLon = Math.min(minLon, coord[0]);
+                    maxLon = Math.max(maxLon, coord[0]);
+                    minLat = Math.min(minLat, coord[1]);
+                    maxLat = Math.max(maxLat, coord[1]);
+                  });
+                }
+              });
+              
+              if (minLon !== Infinity) {
+                // Create a bounding box polygon from children
+                console.log(`Calculated collective bounds for ${name}:`, { minLon, minLat, maxLon, maxLat });
+                geometry = {
+                  type: "Polygon",
+                  coordinates: [[
+                    [minLon, minLat],
+                    [maxLon, minLat],
+                    [maxLon, maxLat],
+                    [minLon, maxLat],
+                    [minLon, minLat]
+                  ]]
+                };
+              }
+            }
+          } catch (wfsError) {
+            console.warn("Failed to fetch children bounds:", wfsError);
+          }
+        }
+
         // Update hierarchy based on tier type
-        if (type === "UpperTier") {
+        if (type === "upper_tier") {
           setViewLevel(VIEW_LEVELS.REGION);
           setCurrentRegion(normalizedName);
           setCurrentMunicipality(null);
           const newHierarchy = [{ name, type, id }];
-          console.log("Setting UpperTier hierarchy:", newHierarchy);
+          console.log("Setting upper_tier hierarchy:", newHierarchy);
           setViewHierarchy(newHierarchy);
 
-          // Update CQL filter to show this UpperTier's LowerTier children (using id as parent_id)
+          // For upper_tier: Show all_municipalities layer filtered by parent_id = municipality_id
           if (id) {
-            const newFilter = CQL_FILTERS.regionDrillDown(id);
-            updateMunicipalityLayerFilter(newFilter);
+            console.log(`Showing children with parent_id: ${id}`);
+            // Show the all_municipalities layer filtered by this municipality's ID as parent_id
+            const childrenFilter = CQL_FILTERS.regionDrillDown(id);
+            updateMunicipalityLayerFilter(childrenFilter);
+            setMunicipalitiesLayerVisible(true);
+          } else {
+            console.error('⚠️ Cannot drill down: municipality_id is missing!');
+            console.log('Municipality data:', { name, type, id, geometry });
           }
 
-          // Make sure municipalities layer is visible (show LowerTier children)
-          setMunicipalitiesLayerVisible(true);
+          // Immediately switch layer context to show lower_tier municipalities
+          switchLayerContext(type, normalizedName);
+          
+          // Debug: Log all layer states after context switch
+          console.log('Layer states after upper_tier drill-down:');
+          layersRef.current.forEach(({ config, cesiumLayer }) => {
+            if (cesiumLayer) {
+              console.log(`  ${config.name}: show=${cesiumLayer.show}, alpha=${cesiumLayer.alpha}`);
+            }
+          });
 
-          // Hide wards - UpperTier does NOT show wards, only LowerTier municipalities
+          // Hide wards - upper_tier does NOT show wards, only lower_tier municipalities
           updateWardsLayerFilter(null, false);
 
           // Hide parcels at region level
           updateParcelsLayerFilter(null);
-        } else if (type === "LowerTier") {
+        } else if (type === "lower_tier") {
           setViewLevel(VIEW_LEVELS.MUNICIPALITY);
           setCurrentMunicipality(normalizedName);
 
@@ -645,26 +1188,26 @@ const CesiumMap = forwardRef(
             // Keep parent region in hierarchy
             setViewHierarchy((prev) => {
               const newHierarchy = [...prev, { name, type, id }];
-              console.log("Adding LowerTier to hierarchy:", newHierarchy);
+              console.log("Adding lower_tier to hierarchy:", newHierarchy);
               return newHierarchy;
             });
           } else {
             // Direct navigation without going through region
             const newHierarchy = [{ name, type, id }];
             console.log(
-              "Setting LowerTier hierarchy (no parent):",
+              "Setting lower_tier hierarchy (no parent):",
               newHierarchy
             );
             setViewHierarchy(newHierarchy);
           }
-        } else if (type === "SingleTier") {
+        } else if (type === "single_tier") {
           setViewLevel(VIEW_LEVELS.MUNICIPALITY);
           setCurrentMunicipality(normalizedName);
 
           // Hide municipalities layer completely
           setMunicipalitiesLayerVisible(false);
 
-          // Show wards for this SingleTier municipality (using id as parent_id)
+          // Show wards for this single_tier municipality (using id as parent_id)
           if (id) {
             updateWardsLayerFilter(id, true);
           }
@@ -675,7 +1218,7 @@ const CesiumMap = forwardRef(
           }
 
           const newHierarchy = [{ name, type, id }];
-          console.log("Setting SingleTier hierarchy:", newHierarchy);
+          console.log("Setting single_tier hierarchy:", newHierarchy);
           setViewHierarchy(newHierarchy);
         }
 
@@ -750,9 +1293,6 @@ const CesiumMap = forwardRef(
                     roll: 0,
                   },
                   duration: 2.5,
-                  complete: () => {
-                    switchLayerContext(type, normalizedName);
-                  },
                 };
               }
             } catch (e) {
@@ -762,6 +1302,7 @@ const CesiumMap = forwardRef(
 
           // Fallback to configured coordinates if geometry bounds not available
           if (!flyToOptions) {
+            console.log("Using fallback coordinates for:", name);
             flyToOptions = {
               destination: Cesium.Cartesian3.fromDegrees(
                 targetConfig.lon,
@@ -774,9 +1315,15 @@ const CesiumMap = forwardRef(
                 0
               ),
               duration: 2.5,
-              complete: () => {
-                switchLayerContext(type, normalizedName);
-              },
+            };
+          }
+
+          // For lower_tier and single_tier, call switchLayerContext after fly completes
+          if (type === "lower_tier" || type === "single_tier") {
+            const originalComplete = flyToOptions.complete;
+            flyToOptions.complete = () => {
+              if (originalComplete) originalComplete();
+              switchLayerContext(type, normalizedName);
             };
           }
 
@@ -802,6 +1349,7 @@ const CesiumMap = forwardRef(
     functionsRef.current = {
       queryMunicipality,
       queryFeatureInfo,
+      queryParcelWithRelatedData,
       drillDownToMunicipality,
     };
 
@@ -844,7 +1392,7 @@ const CesiumMap = forwardRef(
               position: Cesium.Cartesian3.fromDegrees(lon, lat),
               point: {
                 pixelSize: 16,
-                color: Cesium.Color.fromCssColorString("#3b82f6"),
+                color: Cesium.Color.fromCssColorString("#ef4444"),
                 outlineColor: Cesium.Color.WHITE,
                 outlineWidth: 3,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -854,22 +1402,23 @@ const CesiumMap = forwardRef(
           }
 
           if (positions.length > 0) {
+            const boundaryColor = Cesium.Color.fromCssColorString("#ef4444");
+            const outlineColor = Cesium.Color.fromCssColorString("#b91c1c");
             highlightEntityRef.current = viewer.entities.add({
               polygon: {
                 hierarchy: new Cesium.PolygonHierarchy(positions),
-                material:
-                  Cesium.Color.fromCssColorString("#3b82f6").withAlpha(0.25),
+                material: boundaryColor.withAlpha(0.18),
                 outline: true,
-                outlineColor: Cesium.Color.fromCssColorString("#1d4ed8"),
-                outlineWidth: 3,
+                outlineColor,
+                outlineWidth: 2.5,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
               },
               polyline: {
                 positions: positions,
                 width: 4,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                  glowPower: 0.3,
-                  color: Cesium.Color.fromCssColorString("#3b82f6"),
+                  glowPower: 0.25,
+                  color: boundaryColor,
                 }),
                 clampToGround: true,
               },
@@ -898,6 +1447,13 @@ const CesiumMap = forwardRef(
             ),
             duration: 2.5,
           });
+        }
+      },
+
+      toggleLayer: (layerId, visible) => {
+        const layerObj = layersRef.current.find(l => l.config.id === layerId || l.config.name === layerId);
+        if (layerObj && layerObj.cesiumLayer) {
+          layerObj.cesiumLayer.show = visible;
         }
       },
 
@@ -1064,7 +1620,557 @@ const CesiumMap = forwardRef(
         }
       },
 
+      // Zoom controls
+      zoomIn: () => {
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          const camera = viewerRef.current.camera;
+          const currentHeight = camera.positionCartographic.height;
+          const newHeight = currentHeight * 0.5; // Zoom in by 50%
+
+          const currentPosition = camera.positionCartographic;
+          camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              Cesium.Math.toDegrees(currentPosition.longitude),
+              Cesium.Math.toDegrees(currentPosition.latitude),
+              newHeight
+            ),
+            duration: 0.5,
+          });
+        }
+      },
+
+      zoomOut: () => {
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          const camera = viewerRef.current.camera;
+          const currentHeight = camera.positionCartographic.height;
+          const newHeight = currentHeight * 2.0; // Zoom out by 2x
+
+          const currentPosition = camera.positionCartographic;
+          camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              Cesium.Math.toDegrees(currentPosition.longitude),
+              Cesium.Math.toDegrees(currentPosition.latitude),
+              newHeight
+            ),
+            duration: 0.5,
+          });
+        }
+      },
+
+      resetView: () => {
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          const camera = viewerRef.current.camera;
+          const currentPosition = camera.positionCartographic;
+
+          camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              Cesium.Math.toDegrees(currentPosition.longitude),
+              Cesium.Math.toDegrees(currentPosition.latitude),
+              currentPosition.height
+            ),
+            orientation: {
+              heading: Cesium.Math.toRadians(0),
+              pitch: Cesium.Math.toRadians(-90),
+              roll: 0,
+            },
+            duration: 1.0,
+          });
+        }
+      },
+
+      // Measurement functionality
+      startMeasurement: (type, measurementId = null, measurementName = null) => {
+        if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+        const viewer = viewerRef.current;
+        const scene = viewer.scene;
+        let screenSpaceEventHandler = null;
+
+        // Store entities in state ref so cleanup can access them
+        if (!measurementStateRef.current) {
+          measurementStateRef.current = {};
+        }
+        measurementStateRef.current.points = [];
+        measurementStateRef.current.pointEntities = [];
+        measurementStateRef.current.measurementEntity = null;
+        measurementStateRef.current.labelEntity = null;
+        measurementStateRef.current.nameLabel = null;
+
+        // Store reference for cancellation
+        const cleanupMeasurement = () => {
+          if (!measurementStateRef.current) return;
+
+          // Remove all point entities
+          if (measurementStateRef.current.pointEntities) {
+            measurementStateRef.current.pointEntities.forEach(e => {
+              if (e && !e.isDestroyed) viewer.entities.remove(e);
+            });
+          }
+
+          // Remove measurement entity
+          if (measurementStateRef.current.measurementEntity && !measurementStateRef.current.measurementEntity.isDestroyed) {
+            viewer.entities.remove(measurementStateRef.current.measurementEntity);
+          }
+
+          // Remove label entities
+          if (measurementStateRef.current.labelEntity && !measurementStateRef.current.labelEntity.isDestroyed) {
+            viewer.entities.remove(measurementStateRef.current.labelEntity);
+          }
+
+          if (measurementStateRef.current.nameLabel && !measurementStateRef.current.nameLabel.isDestroyed) {
+            viewer.entities.remove(measurementStateRef.current.nameLabel);
+          }
+
+          // Destroy event handler
+          if (screenSpaceEventHandler && !screenSpaceEventHandler.isDestroyed()) {
+            screenSpaceEventHandler.destroy();
+            screenSpaceEventHandler = null;
+          }
+        };
+
+        measurementStateRef.current.cleanup = cleanupMeasurement;
+
+        // Helper function to calculate distance
+        const calculateDistance = (positions) => {
+          let totalDistance = 0;
+          for (let i = 0; i < positions.length - 1; i++) {
+            const cartographic1 = Cesium.Cartographic.fromCartesian(positions[i]);
+            const cartographic2 = Cesium.Cartographic.fromCartesian(positions[i + 1]);
+
+            const geodesic = new Cesium.EllipsoidGeodesic(
+              cartographic1,
+              cartographic2
+            );
+            totalDistance += geodesic.surfaceDistance;
+          }
+          return totalDistance;
+        };
+
+        // Helper function to calculate area
+        const calculateArea = (positions) => {
+          if (positions.length < 3) return 0;
+
+          // Convert to cartographic
+          const cartographics = positions.map(pos =>
+            Cesium.Cartographic.fromCartesian(pos)
+          );
+
+          // Simple spherical excess formula for area on ellipsoid
+          let area = 0;
+          const n = cartographics.length;
+
+          for (let i = 0; i < n; i++) {
+            const j = (i + 1) % n;
+            const lon1 = cartographics[i].longitude;
+            const lat1 = cartographics[i].latitude;
+            const lon2 = cartographics[j].longitude;
+            const lat2 = cartographics[j].latitude;
+
+            area += (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+          }
+
+          area = Math.abs(area * Cesium.Ellipsoid.WGS84.maximumRadius * Cesium.Ellipsoid.WGS84.maximumRadius / 2.0);
+
+          return area;
+        };
+
+        // Helper function to format distance
+        const formatDistance = (meters) => {
+          if (meters < 1000) {
+            return `${meters.toFixed(2)} M`;
+          } else {
+            return `${(meters / 1000).toFixed(2)} KM`;
+          }
+        };
+
+        // Helper function to format area
+        const formatArea = (squareMeters) => {
+          if (squareMeters < 10000) {
+            return `${squareMeters.toFixed(2)} M2`;
+          } else {
+            return `${(squareMeters / 10000).toFixed(2)} HA`;
+          }
+        };
+
+        // Click handler
+        const clickHandler = (click) => {
+          const cartesian = viewer.camera.pickEllipsoid(
+            click.position,
+            scene.globe.ellipsoid
+          );
+
+          if (cartesian) {
+            measurementStateRef.current.points.push(cartesian);
+
+            // Add point marker
+            const pointEntity = viewer.entities.add({
+              position: cartesian,
+              point: {
+                pixelSize: 8,
+                color: Cesium.Color.YELLOW,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+              },
+            });
+            measurementStateRef.current.pointEntities.push(pointEntity);
+
+            // Update measurement line/polygon
+            if (type === 'distance') {
+              if (measurementStateRef.current.points.length >= 2) {
+                // Remove old entity
+                if (measurementStateRef.current.measurementEntity) {
+                  viewer.entities.remove(measurementStateRef.current.measurementEntity);
+                }
+
+                // Create polyline
+                measurementStateRef.current.measurementEntity = viewer.entities.add({
+                  polyline: {
+                    positions: measurementStateRef.current.points,
+                    width: 3,
+                    material: Cesium.Color.YELLOW,
+                    clampToGround: true,
+                  },
+                });
+
+                // Calculate and display current distance
+                const currentDistance = calculateDistance(measurementStateRef.current.points);
+                const distanceText = formatDistance(currentDistance);
+                const labelText = measurementName ? `${measurementName}\n${distanceText}` : distanceText;
+
+                // Add/update label at the end of the line
+                if (measurementStateRef.current.nameLabel) {
+                  viewer.entities.remove(measurementStateRef.current.nameLabel);
+                }
+                measurementStateRef.current.nameLabel = viewer.entities.add({
+                  position: measurementStateRef.current.points[measurementStateRef.current.points.length - 1],
+                  label: {
+                    text: labelText,
+                    font: '14px sans-serif',
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -10),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  },
+                });
+              }
+            } else if (type === 'area') {
+              if (measurementStateRef.current.points.length >= 3) {
+                // Remove old entity
+                if (measurementStateRef.current.measurementEntity) {
+                  viewer.entities.remove(measurementStateRef.current.measurementEntity);
+                }
+
+                // Create polygon
+                measurementStateRef.current.measurementEntity = viewer.entities.add({
+                  polygon: {
+                    hierarchy: measurementStateRef.current.points,
+                    material: Cesium.Color.YELLOW.withAlpha(0.3),
+                    outline: true,
+                    outlineColor: Cesium.Color.YELLOW,
+                    outlineWidth: 3,
+                  },
+                });
+
+                // Calculate and display current area
+                const currentArea = calculateArea(measurementStateRef.current.points);
+                const areaText = formatArea(currentArea);
+                const labelText = measurementName ? `${measurementName}\n${areaText}` : areaText;
+
+                // Add/update label at the centroid of the polygon
+                if (measurementStateRef.current.nameLabel) {
+                  viewer.entities.remove(measurementStateRef.current.nameLabel);
+                }
+                // Calculate centroid
+                const cartographics = measurementStateRef.current.points.map(p => Cesium.Cartographic.fromCartesian(p));
+                const avgLon = cartographics.reduce((sum, c) => sum + c.longitude, 0) / cartographics.length;
+                const avgLat = cartographics.reduce((sum, c) => sum + c.latitude, 0) / cartographics.length;
+                const avgHeight = cartographics.reduce((sum, c) => sum + c.height, 0) / cartographics.length;
+                const centroid = Cesium.Cartesian3.fromRadians(avgLon, avgLat, avgHeight);
+
+                measurementStateRef.current.nameLabel = viewer.entities.add({
+                  position: centroid,
+                  label: {
+                    text: labelText,
+                    font: '14px sans-serif',
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                  },
+                });
+              }
+            }
+
+            scene.requestRender();
+          }
+        };
+
+        // Double-click handler to finish measurement
+        const dblClickHandler = () => {
+          // Remove handlers
+          screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+          screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+          if (measurementStateRef.current.points.length >= 2) {
+            let value;
+            if (type === 'distance') {
+              const distance = calculateDistance(measurementStateRef.current.points);
+              value = formatDistance(distance);
+            } else {
+              const area = calculateArea(measurementStateRef.current.points);
+              value = formatArea(area);
+            }
+
+            // Return measurement data to parent
+            const measurementData = {
+              id: measurementId || Date.now().toString(),
+              type,
+              value,
+              points: measurementStateRef.current.points,
+              name: measurementName, // Include measurement name
+              entities: [
+                ...measurementStateRef.current.pointEntities,
+                measurementStateRef.current.measurementEntity,
+                measurementStateRef.current.labelEntity,
+                measurementStateRef.current.nameLabel
+              ].filter(Boolean),
+            };
+
+            // Trigger callback if provided
+            if (callbacksRef.current.onMeasurementComplete) {
+              callbacksRef.current.onMeasurementComplete(measurementData);
+            }
+
+            // Dispatch event for parent to catch
+            window.dispatchEvent(new CustomEvent('measurementComplete', { detail: measurementData }));
+          } else {
+            // Clean up if not enough points
+            cleanupMeasurement();
+          }
+        };
+
+        // Set up event handlers
+        screenSpaceEventHandler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+        screenSpaceEventHandler.setInputAction(clickHandler, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        screenSpaceEventHandler.setInputAction(dblClickHandler, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+        
+        // Store handler reference
+        measurementStateRef.current.handler = screenSpaceEventHandler;
+      },
+
+      cancelMeasurement: () => {
+        if (measurementStateRef.current?.cleanup) {
+          measurementStateRef.current.cleanup();
+          measurementStateRef.current = null;
+        }
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          viewerRef.current.scene.requestRender();
+        }
+      },
+
       getViewer: () => viewerRef.current,
+
+      // Start drawing a polygon on the map
+      startDrawingPolygon: (onComplete) => {
+        if (!viewerRef.current || viewerRef.current.isDestroyed()) return;
+
+        const viewer = viewerRef.current;
+        const scene = viewer.scene;
+        let screenSpaceEventHandler = null;
+
+        // Initialize drawing state
+        if (!polygonDrawingStateRef.current) {
+          polygonDrawingStateRef.current = {};
+        }
+        polygonDrawingStateRef.current.points = [];
+        polygonDrawingStateRef.current.pointEntities = [];
+        polygonDrawingStateRef.current.lineEntity = null;
+        polygonDrawingStateRef.current.polygonEntity = null;
+
+        // Cleanup function
+        const cleanupDrawing = () => {
+          if (!polygonDrawingStateRef.current) return;
+
+          // Remove all point entities
+          if (polygonDrawingStateRef.current.pointEntities) {
+            polygonDrawingStateRef.current.pointEntities.forEach(e => {
+              if (e && !e.isDestroyed) viewer.entities.remove(e);
+            });
+          }
+
+          // Remove line entity
+          if (polygonDrawingStateRef.current.lineEntity && !polygonDrawingStateRef.current.lineEntity.isDestroyed) {
+            viewer.entities.remove(polygonDrawingStateRef.current.lineEntity);
+          }
+
+          // Remove polygon entity
+          if (polygonDrawingStateRef.current.polygonEntity && !polygonDrawingStateRef.current.polygonEntity.isDestroyed) {
+            viewer.entities.remove(polygonDrawingStateRef.current.polygonEntity);
+          }
+
+          // Destroy event handler
+          if (screenSpaceEventHandler && !screenSpaceEventHandler.isDestroyed()) {
+            screenSpaceEventHandler.destroy();
+            screenSpaceEventHandler = null;
+          }
+        };
+
+        polygonDrawingStateRef.current.cleanup = cleanupDrawing;
+
+        // Click handler to add points
+        const clickHandler = (click) => {
+          const cartesian = viewer.camera.pickEllipsoid(
+            click.position,
+            scene.globe.ellipsoid
+          );
+
+          if (cartesian) {
+            polygonDrawingStateRef.current.points.push(cartesian);
+
+            // Add point marker
+            const pointEntity = viewer.entities.add({
+              position: cartesian,
+              point: {
+                pixelSize: 10,
+                color: Cesium.Color.BLUE,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+              },
+            });
+            polygonDrawingStateRef.current.pointEntities.push(pointEntity);
+
+            // Update preview line
+            if (polygonDrawingStateRef.current.points.length >= 2) {
+              // Remove old line
+              if (polygonDrawingStateRef.current.lineEntity) {
+                viewer.entities.remove(polygonDrawingStateRef.current.lineEntity);
+              }
+
+              // Create preview polyline
+              polygonDrawingStateRef.current.lineEntity = viewer.entities.add({
+                polyline: {
+                  positions: polygonDrawingStateRef.current.points,
+                  width: 2,
+                  material: Cesium.Color.BLUE,
+                  clampToGround: true,
+                },
+              });
+            }
+
+            // Update preview polygon if we have 3+ points
+            if (polygonDrawingStateRef.current.points.length >= 3) {
+              // Remove old polygon
+              if (polygonDrawingStateRef.current.polygonEntity) {
+                viewer.entities.remove(polygonDrawingStateRef.current.polygonEntity);
+              }
+
+              // Create preview polygon
+              polygonDrawingStateRef.current.polygonEntity = viewer.entities.add({
+                polygon: {
+                  hierarchy: polygonDrawingStateRef.current.points,
+                  material: Cesium.Color.BLUE.withAlpha(0.3),
+                  outline: true,
+                  outlineColor: Cesium.Color.BLUE,
+                  outlineWidth: 2,
+                },
+              });
+            }
+
+            scene.requestRender();
+          }
+        };
+
+        // Double-click or Enter key to finish
+        const dblClickHandler = () => {
+          finishDrawing();
+        };
+
+        const finishDrawing = () => {
+          // Remove handlers
+          if (screenSpaceEventHandler && !screenSpaceEventHandler.isDestroyed()) {
+            screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+          }
+
+          if (polygonDrawingStateRef.current.points.length >= 3) {
+            // Convert Cartesian3 points to lat/lon coordinates
+            const coordinates = polygonDrawingStateRef.current.points.map(point => {
+              const cartographic = Cesium.Cartographic.fromCartesian(point);
+              return [
+                Cesium.Math.toDegrees(cartographic.longitude),
+                Cesium.Math.toDegrees(cartographic.latitude)
+              ];
+            });
+
+            // Close the polygon by adding first point at the end
+            coordinates.push(coordinates[0]);
+
+            const polygonGeoJSON = {
+              type: 'Polygon',
+              coordinates: [coordinates]
+            };
+
+            // Call completion callback
+            if (onComplete) {
+              onComplete(polygonGeoJSON);
+            }
+
+            // Clean up drawing entities
+            cleanupDrawing();
+          } else {
+            // Not enough points, just clean up
+            cleanupDrawing();
+          }
+        };
+
+        // Set up event handlers
+        screenSpaceEventHandler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+        screenSpaceEventHandler.setInputAction(clickHandler, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        screenSpaceEventHandler.setInputAction(dblClickHandler, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+        // Store handler reference
+        polygonDrawingStateRef.current.handler = screenSpaceEventHandler;
+        polygonDrawingStateRef.current.finishDrawing = finishDrawing;
+
+        // Listen for Enter key to complete drawing
+        const keyHandler = (e) => {
+          if (e.key === 'Enter' && polygonDrawingStateRef.current) {
+            finishDrawing();
+            window.removeEventListener('keydown', keyHandler);
+          }
+        };
+        window.addEventListener('keydown', keyHandler);
+        polygonDrawingStateRef.current.keyHandler = keyHandler;
+      },
+
+      // Cancel polygon drawing
+      cancelPolygonDrawing: () => {
+        if (polygonDrawingStateRef.current?.cleanup) {
+          polygonDrawingStateRef.current.cleanup();
+
+          // Remove key handler
+          if (polygonDrawingStateRef.current.keyHandler) {
+            window.removeEventListener('keydown', polygonDrawingStateRef.current.keyHandler);
+          }
+
+          polygonDrawingStateRef.current = null;
+        }
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          viewerRef.current.scene.requestRender();
+        }
+      },
+
+      // Complete current polygon drawing
+      completePolygonDrawing: () => {
+        if (polygonDrawingStateRef.current?.finishDrawing) {
+          polygonDrawingStateRef.current.finishDrawing();
+        }
+      },
     }));
 
     useLayoutEffect(() => {
@@ -1093,6 +2199,11 @@ const CesiumMap = forwardRef(
             selectionIndicator: false,
             requestRenderMode: true,
             maximumRenderTimeChange: 0.5,
+            contextOptions: {
+              webgl: {
+                preserveDrawingBuffer: true,
+              },
+            },
           });
 
           viewerRef.current.scene.globe.enableLighting = false;
@@ -1136,7 +2247,7 @@ const CesiumMap = forwardRef(
               // Apply initial CQL filter to municipalities layer
               // to show only UpperTier and SingleTier municipalities
               if (
-                config.name === "view_municipalities" &&
+                config.name === LAYER_NAMES.ALL_MUNICIPALITIES &&
                 CQL_FILTERS.INITIAL
               ) {
                 parameters.CQL_FILTER = CQL_FILTERS.INITIAL;
@@ -1192,7 +2303,7 @@ const CesiumMap = forwardRef(
             const { onWMSFeatureClick: featureClickCb } = callbacksRef.current;
             const {
               queryMunicipality: queryMuni,
-              queryFeatureInfo: queryFeature,
+              queryParcelWithRelatedData: queryParcel,
               drillDownToMunicipality: drillDown,
             } = functionsRef.current;
 
@@ -1209,11 +2320,11 @@ const CesiumMap = forwardRef(
                 drillDown(municipalityData);
               }
             } else if (currentViewLevel === VIEW_LEVELS.REGION) {
-              // At region level: prefer LowerTier for drill-down into municipality
+              // At region level: prefer lower_tier for drill-down into municipality
               const municipalityData = await queryMuni(
                 latitude,
                 longitude,
-                "LowerTier"
+                "lower_tier"
               );
               if (municipalityData) {
                 console.log(`Municipality clicked:`, municipalityData);
@@ -1223,22 +2334,28 @@ const CesiumMap = forwardRef(
               currentViewLevel === VIEW_LEVELS.MUNICIPALITY ||
               currentViewLevel === VIEW_LEVELS.PARCEL
             ) {
-              // Zoomed into municipality or already viewing parcel: Query parcels
-              const feature = await queryFeature(
+              // Zoomed into municipality or already viewing parcel: Query parcels with all related data
+              const combinedFeature = await queryParcel(
                 latitude,
                 longitude,
-                "view_parcels"
+                null
               );
-              if (feature) {
-                console.log("Parcel clicked:", feature);
-                setSelectedFeature(feature);
+              if (combinedFeature && combinedFeature.properties) {
+                console.log("Parcel clicked (with related data):", combinedFeature);
+                setSelectedFeature(combinedFeature);
                 setViewLevel(VIEW_LEVELS.PARCEL);
+                if (combinedFeature.geometry) {
+                  highlightParcelGeometry(combinedFeature.geometry);
+                } else {
+                  clearParcelHighlight();
+                }
                 if (featureClickCb) {
-                  featureClickCb(feature);
+                  featureClickCb(combinedFeature);
                 }
               } else {
                 // No parcel found, might have clicked background
                 setSelectedFeature(null);
+                clearParcelHighlight();
                 if (featureClickCb) {
                   featureClickCb(null);
                 }
@@ -1282,6 +2399,7 @@ const CesiumMap = forwardRef(
         ref={cesiumContainer}
         className="w-full h-screen relative"
         style={{ background: "#000" }}
+        data-onboard="map-canvas"
       />
     );
   }
