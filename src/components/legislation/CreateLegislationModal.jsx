@@ -16,7 +16,6 @@ import MapDrawingToolbar from './MapDrawingToolbar';
 import TransformPanel from './TransformPanel';
 import SimulationPanel from './SimulationPanel';
 import LayerLegend from './LayerLegend';
-import OnboardingHelper from './OnboardingHelper';
 import PolygonDrawingToolbar from './PolygonDrawingToolbar';
 import BranchingModal from './BranchingModal';
 import { useFeatureOnboardingFlow } from '../../hooks/useOnboardingFlow';
